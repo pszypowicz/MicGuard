@@ -6,7 +6,7 @@ title: Distributed Notifications
 
 MicGuard posts macOS distributed notifications that any app or script can observe to react to mic state changes.
 
-[Home](index.md) · [CLI Reference](cli.md) · [Integrations](integrations.md)
+[Home](index.md) · [CLI Reference](cli.md) · [Integrations](integrations.md) · [Releasing](releasing.md)
 
 ## Notification reference
 
