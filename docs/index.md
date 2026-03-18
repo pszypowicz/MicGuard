@@ -6,7 +6,7 @@ title: MicGuard
 
 Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS microphone.
 
-[CLI Reference](cli.md) · [Integrations](integrations.md) · [Notifications](notifications.md)
+[CLI Reference](cli.md) · [Integrations](integrations.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
 
 ## How it works
 

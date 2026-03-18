@@ -6,7 +6,7 @@ title: CLI Reference
 
 MicGuard doubles as a CLI tool. The `mic-guard` binary is symlinked to `/usr/local/bin` on install.
 
-[Home](index.md) · [Integrations](integrations.md) · [Notifications](notifications.md)
+[Home](index.md) · [Integrations](integrations.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
 
 ## Commands
 
