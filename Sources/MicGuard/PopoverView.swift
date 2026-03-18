@@ -106,6 +106,20 @@ struct PopoverView: View {
 
             Divider().padding(.vertical, 2)
 
+            // About
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+                Text("MicGuard \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev")")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+
             // Quit
             MenuRow(title: "Quit MicGuard", shortcut: "⌘Q", icon: "xmark.circle") {
                 NSApplication.shared.terminate(nil)
