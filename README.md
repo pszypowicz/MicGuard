@@ -1,5 +1,7 @@
 # MicGuard
 
+**[Documentation](https://pszypowicz.github.io/MicGuard/)** · **[SketchyBar Integration](https://pszypowicz.github.io/MicGuard/integrations.html)**
+
 Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS microphone.
 
 ## How it works
