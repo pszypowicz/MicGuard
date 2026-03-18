@@ -5,10 +5,7 @@ struct PopoverView: View {
     private var monitor = AudioMonitor.shared
     @State private var devices: [(id: UInt32, name: String)] = []
     @State private var isUpdatingLogin = false
-
-    private var isLoginEnabled: Bool {
-        SMAppService.mainApp.status == .enabled
-    }
+    @State private var isLoginEnabled = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -83,6 +80,7 @@ struct PopoverView: View {
                 } catch {
                     log("Login item toggle failed: \(error)")
                 }
+                isLoginEnabled = SMAppService.mainApp.status == .enabled
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "")

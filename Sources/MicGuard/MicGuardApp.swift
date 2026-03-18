@@ -30,7 +30,7 @@ struct MicGuardApp: App {
         MenuBarExtra {
             PopoverView()
         } label: {
-            Image(systemName: AudioMonitor.shared.isEnabled ? "mic.fill" : "mic.slash.fill")
+            Image(nsImage: MenuBarIcon.image(enabled: AudioMonitor.shared.isEnabled))
         }
         .menuBarExtraStyle(.window)
     }
