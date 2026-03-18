@@ -1,13 +1,26 @@
 import ServiceManagement
 import SwiftUI
 
+private func postTerminationNotification() {
+    DistributedNotificationCenter.default().postNotificationName(
+        NSNotification.Name("com.micguard.appTerminated"),
+        object: nil
+    )
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
-        DistributedNotificationCenter.default().postNotificationName(
-            NSNotification.Name("com.micguard.appTerminated"),
-            object: nil
-        )
+        postTerminationNotification()
     }
+}
+
+private func installSignalHandlers() {
+    let handler: @convention(c) (Int32) -> Void = { _ in
+        postTerminationNotification()
+        exit(0)
+    }
+    signal(SIGTERM, handler)
+    signal(SIGINT, handler)
 }
 
 @main
@@ -23,6 +36,7 @@ struct MicGuardApp: App {
 
         // Daemon mode
         log("MicGuard starting")
+        installSignalHandlers()
 
         let service = SMAppService.mainApp
         if service.status != .enabled {
