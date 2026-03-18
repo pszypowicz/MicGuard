@@ -14,9 +14,11 @@ The reference integration is a [SketchyBar](https://github.com/FelixKratz/Sketch
 
 | State | Icon | Color | Meaning |
 |-------|------|-------|---------|
-| Active | 󰍬 | White | Mic is live, MicGuard is running |
-| Muted | 󰍭 | Red | Input volume is 0 |
-| Off | 󰍬 | Yellow | MicGuard is not running or no valid device |
+| Active | nf-md-microphone | White | Mic is live, MicGuard is running |
+| Muted | nf-md-microphone_off | Red | Input volume is 0 |
+| Off | nf-md-microphone | Yellow | MicGuard is not running or no valid device |
+
+Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs (`U+F0D6C` and `U+F0D6D`). A patched font is required.
 
 ### Features
 
@@ -77,6 +79,7 @@ fi
 
 # MicGuard app terminated — show off state
 if [[ "$SENDER" == "mic_app_terminated" ]]; then
+  # Nerd Font: nf-md-microphone (U+F0D6C)
   sketchybar -m --set mic label="Off" icon=󰍬 icon.color=$YELLOW label.color=$YELLOW
   exit 0
 fi
@@ -92,6 +95,7 @@ MIC_NAME=$(echo $MIC_NAME | awk '{print $1}')
 MIC_VOLUME=$(osascript -e 'input volume of (get volume settings)' 2>/dev/null) || exit 0
 
 if [[ $MIC_VOLUME -eq 0 ]]; then
+  # Nerd Font: nf-md-microphone_off (U+F0D6D)
   sketchybar -m --set mic label="$MIC_NAME" icon=󰍭 icon.color=$RED label.color=$RED
 else
   sketchybar -m --set mic label="$MIC_NAME" icon=󰍬 icon.color=$WHITE label.color=$WHITE
@@ -128,7 +132,7 @@ if [[ "$BUTTON" == "right" ]]; then
     ITEM_NAME="mic.device.$INDEX"
 
     if [[ "$device" == "$CURRENT" ]]; then
-      ICON="󰄬"
+      ICON="󰄬"  # Nerd Font: nf-md-check (U+F0126)
       COLOR="$WHITE"
     else
       ICON=""
