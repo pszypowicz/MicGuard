@@ -63,11 +63,13 @@ final class AudioMonitor {
             log("Watching default input device changes")
         }
 
-        // Notify sketchybar so it updates immediately on launch
-        DistributedNotificationCenter.default().postNotificationName(
-            NSNotification.Name("com.micguard.deviceChanged"),
-            object: nil
-        )
+        // Enforce preferred device on launch
+        enforce()
+
+        // Send a delayed notification so SketchyBar has time to start after a reboot
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.postDeviceChanged()
+        }
     }
 
     func readEnabled() -> Bool {
@@ -120,23 +122,26 @@ final class AudioMonitor {
         // Always update current device
         currentDevice = AudioDevices.currentInputDevice()?.name ?? ""
 
-        guard isEnabled else { return }
-
-        let preferred = readPreference()
-        guard !preferred.isEmpty,
-              let current = AudioDevices.currentInputDevice() else { return }
-
-        if current.name != preferred {
-            log("Input changed to '\(current.name)' — reverting to '\(preferred)'")
-            if !AudioDevices.setInputDevice(name: preferred) {
-                log("Failed to set input device to '\(preferred)'")
-            } else {
-                currentDevice = preferred
+        if isEnabled {
+            let preferred = readPreference()
+            if !preferred.isEmpty, let current = AudioDevices.currentInputDevice() {
+                if current.name != preferred {
+                    log("Input changed to '\(current.name)' — reverting to '\(preferred)'")
+                    if !AudioDevices.setInputDevice(name: preferred) {
+                        log("Failed to set input device to '\(preferred)'")
+                    } else {
+                        currentDevice = preferred
+                    }
+                } else {
+                    log("Input is already '\(current.name)' — no action")
+                }
             }
-        } else {
-            log("Input is already '\(current.name)' — no action")
         }
 
+        postDeviceChanged()
+    }
+
+    private func postDeviceChanged() {
         DistributedNotificationCenter.default().postNotificationName(
             NSNotification.Name("com.micguard.deviceChanged"),
             object: nil
