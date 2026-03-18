@@ -2,6 +2,8 @@ name: Release
 on:
   push:
     tags: ['v*']
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: macos-15
@@ -10,4 +12,4 @@ jobs:
       - run: make zip
       - uses: softprops/action-gh-release@v2
         with:
-          files: .build/MicGuard.app.zip
+          files: .build/MicGuard.zip
