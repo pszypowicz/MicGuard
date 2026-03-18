@@ -55,6 +55,16 @@ All config lives in `~/.config/mic-guard/`:
 | `preferred-mic` | Exact name of your preferred input device |
 | `enabled` | `1` or `0` — whether monitoring is active |
 
+## Distributed Notifications
+
+MicGuard posts macOS distributed notifications that other apps (e.g. SketchyBar) can observe:
+
+| Notification | Posted when |
+|---|---|
+| `com.micguard.deviceChanged` | The default input device changes (detected by CoreAudio listener), and on app launch |
+| `com.micguard.enabledChanged` | Monitoring is toggled via `mic-guard enable` / `mic-guard disable` |
+| `com.micguard.appTerminated` | The app is about to quit |
+
 ## Architecture
 
 ```

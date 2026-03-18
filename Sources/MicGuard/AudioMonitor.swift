@@ -62,6 +62,12 @@ final class AudioMonitor {
         } else {
             log("Watching default input device changes")
         }
+
+        // Notify sketchybar so it updates immediately on launch
+        DistributedNotificationCenter.default().postNotificationName(
+            NSNotification.Name("com.micguard.deviceChanged"),
+            object: nil
+        )
     }
 
     func readEnabled() -> Bool {

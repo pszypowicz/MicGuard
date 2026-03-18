@@ -1,8 +1,19 @@
 import ServiceManagement
 import SwiftUI
 
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        DistributedNotificationCenter.default().postNotificationName(
+            NSNotification.Name("com.micguard.appTerminated"),
+            object: nil
+        )
+    }
+}
+
 @main
 struct MicGuardApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     init() {
         let args = CommandLine.arguments.dropFirst()
         if let command = args.first {
