@@ -8,6 +8,10 @@ How to publish a new MicGuard version to Homebrew.
 
 [Home](index.md) · [CLI Reference](cli.md) · [Integrations](integrations.md) · [Notifications](notifications.md)
 
+## Versioning
+
+The app version is derived from the latest git tag at build time. `scripts/bundle.sh` runs `git describe --tags` and stamps the result into `Info.plist` via `PlistBuddy`. The source `Info.plist` contains a `0.0.0-dev` placeholder — do not hardcode a version there.
+
 ## 1. Tag and push
 
 ```bash
@@ -15,7 +19,7 @@ git tag v<version>
 git push origin v<version>
 ```
 
-GitHub Actions builds the app and creates a release with `MicGuard.zip`.
+GitHub Actions builds the app and creates a release with `MicGuard.zip`. The tag determines the version embedded in the built app.
 
 ## 2. Get the SHA-256
 
