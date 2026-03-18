@@ -1,0 +1,13 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: make zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: .build/MicGuard.app.zip

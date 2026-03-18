@@ -4,29 +4,30 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 
 ## How it works
 
-MicGuard registers a CoreAudio property listener on the default input device. When the system switches the input (e.g. when AirPods connect), MicGuard immediately reverts to your preferred microphone using `SwitchAudioSource`.
+MicGuard is a headless macOS app that registers a CoreAudio property listener on the default input device. When the system switches the input (e.g. when AirPods connect), MicGuard immediately reverts to your preferred microphone using native CoreAudio APIs.
+
+On first launch, MicGuard registers itself as a Login Item via `SMAppService`, so it starts automatically on login. It appears in System Settings > Login Items with its own icon.
 
 The preferred mic is stored in `~/.config/mic-guard/preferred-mic`. If the file doesn't exist on first run, MicGuard initializes it with the current input device.
 
 ## Requirements
 
-- macOS 13+
-- [SwitchAudioSource](https://github.com/deweller/switchaudio-osx): `brew install switchaudio-osx`
+- macOS 15+
 
 ## Build & Install
 
 ```bash
-# Build
-swift build          # debug
-make build           # release
+make install    # builds .app bundle, copies to /Applications, symlinks mic-guard CLI
+```
 
-# Install to /usr/local/bin
-make install
+## CLI
 
-# Or via Homebrew tap
-brew tap pszypowicz/tap
-brew install mic-guard
-brew services start mic-guard
+MicGuard doubles as a CLI tool for querying and switching audio input devices:
+
+```bash
+mic-guard list       # list all input devices
+mic-guard current    # print current default input device
+mic-guard set <name> # set default input device by name
 ```
 
 ## Configuration
@@ -34,26 +35,18 @@ brew services start mic-guard
 Edit `~/.config/mic-guard/preferred-mic` with the exact name of your preferred input device. List available devices with:
 
 ```bash
-SwitchAudioSource -a -t input
+mic-guard list
 ```
-
-## Running as a daemon
-
-When installed via Homebrew, use `brew services` to manage the launchd agent:
-
-```bash
-brew services start mic-guard   # start
-brew services stop mic-guard    # stop
-brew services info mic-guard    # status
-```
-
-The dotfiles repo contains the SketchyBar integration for changing the preferred mic via right-click on the mic icon.
 
 ## Architecture
 
 ```
-CoreAudio listener (kAudioHardwarePropertyDefaultInputDevice)
-  → reads ~/.config/mic-guard/preferred-mic
-  → compares with current input (SwitchAudioSource -t input -c)
-  → reverts if different (SwitchAudioSource -t input -s "<preferred>")
+MicGuard.app (headless, LSUIElement)
+  ├── SMAppService.mainApp.register() → auto-start on login
+  └── CoreAudio listener (kAudioHardwarePropertyDefaultInputDevice)
+        → reads ~/.config/mic-guard/preferred-mic
+        → compares with current input (AudioObjectGetPropertyData)
+        → reverts if different (AudioObjectSetPropertyData)
 ```
+
+The [dotfiles repo](https://github.com/pszypowicz/dotfiles) contains SketchyBar integration for changing the preferred mic via right-click on the mic icon.
