@@ -4,3 +4,4 @@
 *.xcworkspace/
 Package.resolved
 .DS_Store
+*.app

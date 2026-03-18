@@ -1,13 +1,16 @@
-PREFIX ?= /usr/local
-
 build:
-	swift build -c release
+	bash scripts/bundle.sh
 
 install: build
-	install -d $(PREFIX)/bin
-	install .build/release/MicGuard $(PREFIX)/bin/mic-guard
+	cp -R .build/MicGuard.app /Applications/MicGuard.app
+	mkdir -p $(HOME)/.local/bin
+	ln -sf /Applications/MicGuard.app/Contents/MacOS/MicGuard $(HOME)/.local/bin/mic-guard
 
 uninstall:
-	rm -f $(PREFIX)/bin/mic-guard
+	rm -rf /Applications/MicGuard.app
+	rm -f $(HOME)/.local/bin/mic-guard
 
-.PHONY: build install uninstall
+zip: build
+	cd .build && zip -r MicGuard.app.zip MicGuard.app
+
+.PHONY: build install uninstall zip
