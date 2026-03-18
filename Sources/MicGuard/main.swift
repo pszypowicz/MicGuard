@@ -21,7 +21,7 @@ func shell(_ args: String...) -> String {
 }
 
 let configDir = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent(".config/audio-guard")
+    .appendingPathComponent(".config/mic-guard")
 let prefFile = configDir.appendingPathComponent("preferred-mic")
 
 func readPreference() -> String {
@@ -75,6 +75,6 @@ if status != noErr {
     exit(1)
 }
 
-log("AudioGuard started — watching default input device changes")
+log("MicGuard started — watching default input device changes")
 let _ = readPreference() // ensure config exists on startup
 RunLoop.main.run()
