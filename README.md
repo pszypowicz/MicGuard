@@ -67,4 +67,15 @@ MicGuard.app (MenuBarExtra, LSUIElement)
         → reverts if different (AudioObjectSetPropertyData)
 ```
 
+## Releasing
+
+1. Tag and push: `git tag v<version> && git push origin v<version>`
+2. GitHub Actions builds the app and creates a release with `MicGuard.zip`
+3. Update `homebrew-tap/Casks/mic-guard.rb`:
+   - Set `version` to the new version
+   - Update `sha256` — get it with:
+     ```bash
+     curl -sL https://github.com/pszypowicz/MicGuard/releases/download/v<version>/MicGuard.zip | shasum -a 256
+     ```
+
 The [dotfiles repo](https://github.com/pszypowicz/dotfiles) contains SketchyBar integration for displaying and changing the preferred mic.
