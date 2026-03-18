@@ -1,0 +1,3 @@
+theme: jekyll-theme-minimal
+title: MicGuard
+description: Prevents Bluetooth audio devices from hijacking the default macOS microphone
