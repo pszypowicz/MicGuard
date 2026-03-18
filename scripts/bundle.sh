@@ -13,7 +13,8 @@ cp Resources/MicGuard.icns "$APP/Resources/MicGuard.icns"
 
 codesign --sign - --force .build/MicGuard.app
 
-# Create mic-guard symlink for CLI usage
-ln -sf MicGuard.app/Contents/MacOS/MicGuard .build/mic-guard
+# Create bin/mic-guard symlink for CLI usage (included in zip for cask binary stanza)
+mkdir -p .build/bin
+ln -sf ../MicGuard.app/Contents/MacOS/MicGuard .build/bin/mic-guard
 
 echo "Built .build/MicGuard.app"

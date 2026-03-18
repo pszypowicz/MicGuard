@@ -3,14 +3,13 @@ build:
 
 install: build
 	cp -R .build/MicGuard.app /Applications/MicGuard.app
-	mkdir -p $(HOME)/.local/bin
-	ln -sf /Applications/MicGuard.app/Contents/MacOS/MicGuard $(HOME)/.local/bin/mic-guard
+	ln -sf /Applications/MicGuard.app/Contents/MacOS/MicGuard /usr/local/bin/mic-guard
 
 uninstall:
 	rm -rf /Applications/MicGuard.app
-	rm -f $(HOME)/.local/bin/mic-guard
+	rm -f /usr/local/bin/mic-guard
 
 zip: build
-	cd .build && zip -r MicGuard.app.zip MicGuard.app
+	cd .build && zip -ry MicGuard.zip MicGuard.app bin/mic-guard
 
 .PHONY: build install uninstall zip
