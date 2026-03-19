@@ -12,9 +12,9 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 | Notification | Direction | Posted when |
 |---|---|---|
-| `com.micguard.statusChanged` | Outbound | Device change, enabled toggle, app launch, ping response |
-| `com.micguard.appTerminated` | Outbound | The app is about to quit |
-| `com.micguard.requestStatus` | Inbound | External consumers post this to request a status re-broadcast |
+| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Device change, enabled toggle, app launch, ping response |
+| `com.pszypowicz.MicGuard.appTerminated` | Outbound | The app is about to quit |
+| `com.pszypowicz.MicGuard.requestStatus` | Inbound | External consumers post this to request a status re-broadcast |
 
 ## Observing notifications
 
@@ -26,7 +26,7 @@ import Foundation
 let center = DistributedNotificationCenter.default()
 
 center.addObserver(
-    forName: NSNotification.Name("com.micguard.statusChanged"),
+    forName: NSNotification.Name("com.pszypowicz.MicGuard.statusChanged"),
     object: nil,
     queue: .main
 ) { notification in
@@ -40,7 +40,7 @@ SketchyBar can subscribe to distributed notifications as custom events:
 
 ```bash
 # Register the distributed notification as a SketchyBar event
-sketchybar --add event mic_status_changed "com.micguard.statusChanged"
+sketchybar --add event mic_status_changed "com.pszypowicz.MicGuard.statusChanged"
 
 # Subscribe an item to the event
 sketchybar --subscribe mic mic_status_changed
@@ -52,6 +52,6 @@ You can observe notifications from the command line using `notificationlistener`
 
 ## Use cases
 
-- **Menubar indicators** — show the current mic name, mute state, or monitoring status
+- **Menubar indicators** — show the current mic name, mute state, or enabled/disabled status
 - **Automation** — trigger scripts when the mic changes (e.g. adjust audio routing)
 - **Logging** — record device change events for debugging audio issues
