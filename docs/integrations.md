@@ -13,27 +13,31 @@ MicGuard posts [distributed notifications](notifications.md) whenever the input 
 The reference integration is a [SketchyBar](https://github.com/FelixKratz/SketchyBar) item that shows mic status in the menubar using a two-item layout: a **shield** item (icon only) representing MicGuard protection status, and a **mic** item (icon + label) representing audio state and device name.
 
 ```
- [mic.shield]  [mic          ]
-  icon=󰕥       icon=󰍬 label=Name
+ [mic.shield]  [mic              ]
+  icon only     icon + label=Name
   ← shield →   ← mic + name →
 ```
 
 Both items sit on the right side. `mic` is added first (rightmost), then `mic.shield` is added second (appears to its left). Both icons render at the default 17pt Nerd Font size since they each use their item's `icon` field.
 
-| MicGuard | Mic | mic.shield icon | mic.shield color | mic icon | mic label | mic color |
-|----------|-----|-----------------|------------------|----------|-----------|-----------|
-| Enabled | Active | 󰕥 shield_check | White | 󰍬 | Name | White |
-| Enabled | Muted | 󰕥 shield_check | White | 󰍭 | Name | Red |
-| Disabled | Active | 󰦞 shield_off | Yellow | 󰍬 | Name | Yellow |
-| Disabled | Muted | 󰦞 shield_off | Yellow | 󰍭 | Name | Red |
-| App off | — | 󰦞 shield_off + "Off" | Red | *(hidden)* | — | — |
-
 Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs. A patched font is required.
 
-- `nf-md-shield_check` — `U+F0565` (󰕥)
-- `nf-md-shield_off` — `U+F099E` (󰦞)
-- `nf-md-microphone` — `U+F036C` (󰍬)
-- `nf-md-microphone_off` — `U+F036D` (󰍭)
+| Glyph name | Codepoint |
+|------------|-----------|
+| `nf-md-shield_check` | `U+F0565` |
+| `nf-md-shield_off` | `U+F099E` |
+| `nf-md-microphone` | `U+F036C` |
+| `nf-md-microphone_off` | `U+F036D` |
+
+**Enabled + Active** — shield: `shield_check` (white), mic: `microphone` + device name (white)
+
+**Enabled + Muted** — shield: `shield_check` (white), mic: `microphone_off` + device name (red)
+
+**Disabled + Active** — shield: `shield_off` (yellow), mic: `microphone` + device name (yellow)
+
+**Disabled + Muted** — shield: `shield_off` (yellow), mic: `microphone_off` + device name (red)
+
+**App not running** — shield: `shield_off` + "Off" label (red), mic item hidden
 
 ### Features
 
