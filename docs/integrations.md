@@ -53,7 +53,12 @@ sketchybar --add event mic_app_terminated "com.micguard.appTerminated"
 sketchybar --add item mic right \
   --set mic "${mic[@]}" \
   --subscribe mic mic_clicked mic_device_changed mic_app_terminated mouse.exited mouse.exited.global
+
+# Request current status from MicGuard
+mic-guard ping 2>/dev/null &
 ```
+
+The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast its status via `com.micguard.deviceChanged`, so the mic item populates immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
 
 Key points:
 - `mic_device_changed` maps to the `com.micguard.deviceChanged` distributed notification

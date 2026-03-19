@@ -58,3 +58,11 @@ Print whether monitoring is enabled or disabled.
 $ mic-guard status
 enabled
 ```
+
+### `mic-guard ping`
+
+Ask the running MicGuard daemon to re-broadcast its current status. Posts a `com.micguard.requestStatus` notification, which causes the daemon to respond with `com.micguard.deviceChanged` and `com.micguard.enabledChanged`.
+
+```bash
+$ mic-guard ping
+```

@@ -10,11 +10,12 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 ## Notification reference
 
-| Notification | Posted when |
-|---|---|
-| `com.micguard.deviceChanged` | The default input device changes (detected by CoreAudio listener), and on app launch |
-| `com.micguard.enabledChanged` | Monitoring is toggled via `mic-guard enable` / `mic-guard disable` |
-| `com.micguard.appTerminated` | The app is about to quit |
+| Notification | Direction | Posted when |
+|---|---|---|
+| `com.micguard.deviceChanged` | Outbound | The default input device changes (detected by CoreAudio listener), and on app launch |
+| `com.micguard.enabledChanged` | Outbound | Monitoring is toggled via `mic-guard enable` / `mic-guard disable` |
+| `com.micguard.appTerminated` | Outbound | The app is about to quit |
+| `com.micguard.requestStatus` | Inbound | External consumers post this to request a status re-broadcast; MicGuard responds with `deviceChanged` and `enabledChanged` |
 
 ## Observing notifications
 
