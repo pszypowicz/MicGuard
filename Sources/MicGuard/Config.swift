@@ -3,9 +3,9 @@ import os
 
 enum Config {
     static let configDir = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/mic-guard")
-    static let prefFile = configDir.appendingPathComponent("preferred-mic")
-    static let enabledFile = configDir.appendingPathComponent("enabled")
+        .appending(path: ".config/mic-guard")
+    static let prefFile = configDir.appending(component: "preferred-mic")
+    static let enabledFile = configDir.appending(component: "enabled")
 
     static func ensureConfigDir() {
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true,
@@ -49,6 +49,6 @@ enum Config {
 
     private static func setFilePermissions(_ url: URL) {
         try? FileManager.default.setAttributes(
-            [.posixPermissions: 0o600], ofItemAtPath: url.path)
+            [.posixPermissions: 0o600], ofItemAtPath: url.path(percentEncoded: false))
     }
 }

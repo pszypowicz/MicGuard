@@ -54,7 +54,7 @@ struct MicGuardApp: App {
 
         // Daemon mode — ensure single instance via fcntl lock file
         Config.ensureConfigDir()
-        let lockPath = Config.configDir.appendingPathComponent("lock").path
+        let lockPath = Config.configDir.appending(component: "lock").path(percentEncoded: false)
         let lockFD = open(lockPath, O_CREAT | O_WRONLY, 0o600)
         guard lockFD != -1 else {
             logger.error("Could not create lock file — exiting")
