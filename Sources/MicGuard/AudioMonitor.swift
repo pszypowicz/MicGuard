@@ -235,21 +235,26 @@ final class AudioMonitor {
             logger.error("Failed to register volume listener (status: \(status, privacy: .public))")
         }
 
-        // Also listen for mute property changes
+        // Also listen for mute property changes (check with element 0, listen on wildcard)
+        var muteCheckAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
         var muteAddress = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
             mScope: kAudioDevicePropertyScopeInput,
             mElement: kAudioObjectPropertyElementWildcard
         )
-        if AudioObjectHasProperty(deviceID, &muteAddress) {
+        if AudioObjectHasProperty(deviceID, &muteCheckAddress) {
             let muteHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 Task { @MainActor in
                     guard let self else { return }
                     if let vol = AudioDevices.inputVolume(for: deviceID) {
-                        logger.debug("Mute changed, volume now \(vol, privacy: .public)%")
                         self.inputVolume = vol
-                        self.debouncedPostStatusChanged()
                     }
+                    logger.debug("Mute changed, volume now \(self.inputVolume, privacy: .public)%")
+                    self.debouncedPostStatusChanged()
                 }
             }
             self.muteListenerBlock = muteHandler
@@ -338,25 +343,18 @@ final class AudioMonitor {
             return
         }
 
-        if let muted = AudioDevices.isInputMuted(for: device.id) {
-            // Device has native mute property
-            let newMuted = !muted
-            if AudioDevices.setInputMuted(for: device.id, muted: newMuted) {
-                logger.info("toggleMute: native mute set to \(newMuted, privacy: .public)")
-            } else {
-                logger.error("toggleMute: failed to set native mute")
-            }
+        // Always mute/unmute via volume — native mute flag alone doesn't
+        // silence the mic on all devices (e.g. MacBook Pro Microphone).
+        let currentVolume = AudioDevices.inputVolume(for: device.id) ?? 0
+        if currentVolume > 0 {
+            preMuteVolume = currentVolume
+            _ = AudioDevices.setInputVolume(for: device.id, volume: 0)
+            _ = AudioDevices.setInputMuted(for: device.id, muted: true)
+            logger.info("toggleMute: muted (saved volume \(self.preMuteVolume, privacy: .public))")
         } else {
-            // No mute property — emulate via volume
-            let currentVolume = AudioDevices.inputVolume(for: device.id) ?? 0
-            if currentVolume > 0 {
-                preMuteVolume = currentVolume
-                _ = AudioDevices.setInputVolume(for: device.id, volume: 0)
-                logger.info("toggleMute: soft-muted (saved volume \(self.preMuteVolume, privacy: .public))")
-            } else {
-                _ = AudioDevices.setInputVolume(for: device.id, volume: preMuteVolume)
-                logger.info("toggleMute: soft-unmuted (restored volume \(self.preMuteVolume, privacy: .public))")
-            }
+            _ = AudioDevices.setInputVolume(for: device.id, volume: preMuteVolume)
+            _ = AudioDevices.setInputMuted(for: device.id, muted: false)
+            logger.info("toggleMute: unmuted (restored volume \(self.preMuteVolume, privacy: .public))")
         }
     }
 
@@ -378,14 +376,8 @@ final class AudioMonitor {
     }
 
     func postStatusChanged() {
-        var isMuted = false
-        if let device = AudioDevices.currentInputDevice() {
-            if let nativeMute = AudioDevices.isInputMuted(for: device.id) {
-                isMuted = nativeMute
-            } else {
-                isMuted = inputVolume == 0
-            }
-        }
+        // Muted = volume at zero (native mute flag alone doesn't silence all devices)
+        let isMuted = inputVolume == 0
         let info: [String: String] = [
             "enabled": isEnabled ? "1" : "0",
             "device": currentDevice,

@@ -109,6 +109,49 @@ MicGuard registers as a login item via `SMAppService`. If it's not starting at l
 2. Try removing and re-adding: toggle it off in System Settings, then relaunch MicGuard
 3. If MicGuard doesn't appear in the list, launch it manually once — it registers itself on first run
 
+### Mute not working
+
+If clicking mute in sketchybar (or running `mic-guard mute`) doesn't silence the mic:
+
+1. Check MicGuard is running: `pgrep -x MicGuard`
+2. Stream logs and trigger mute to trace the full flow:
+
+```bash
+# Tab 1 — stream logs
+log stream --predicate 'subsystem == "com.pszypowicz.MicGuard"' --level debug
+
+# Tab 2 — trigger mute
+mic-guard mute
+```
+
+You should see three log entries in sequence:
+
+```
+toggleMute: muted (saved volume 100)
+Volume changed to 0%
+Posting status notification: enabled=1 device=… volume=0 muted=1
+```
+
+If you only see the first line but no "Volume changed" or "Posting status", the CoreAudio property listener isn't firing. This was a known bug (fixed in v0.11.0) where `AudioObjectHasProperty` returned `false` for wildcard elements, preventing the mute listener from being registered.
+
+If `mic-guard mute` produces no logs at all, the distributed notification isn't reaching the daemon. This can happen after a `brew upgrade` if the old process is still running — kill and relaunch:
+
+```bash
+pkill -x MicGuard
+open /Applications/MicGuard.app
+```
+
+### Stale process after brew upgrade
+
+After `brew upgrade --cask mic-guard`, the old MicGuard process may keep running (it holds a lock file, so the new process exits silently). Symptoms: CLI commands like `mic-guard mute` or `mic-guard ping` produce no response. Fix:
+
+```bash
+pkill -x MicGuard
+open /Applications/MicGuard.app
+```
+
+The cask's `postflight` now kills the old process automatically (added in v0.10.0), but if you upgraded from an older cask version, you may need to do this once manually.
+
 ### Reset configuration
 
 To reset all MicGuard configuration to defaults:
