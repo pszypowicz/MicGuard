@@ -97,8 +97,11 @@ struct MicGuardApp: App {
         case "status":
             let enabled = readEnabledFile()
             print(enabled ? "enabled" : "disabled")
+        case "ping":
+            DistributedNotificationCenter.default().postNotificationName(
+                AudioMonitor.requestStatusNotification, object: nil)
         default:
-            fputs("Usage: mic-guard [list|current|set <name>|enable|disable|status]\n", stderr)
+            fputs("Usage: mic-guard [list|current|set <name>|enable|disable|status|ping]\n", stderr)
             fputs("  No arguments: run as daemon\n", stderr)
             exit(1)
         }

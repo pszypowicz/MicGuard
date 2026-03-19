@@ -21,6 +21,7 @@ final class AudioMonitor {
     private let enabledFile: URL
 
     static let enabledChangedNotification = NSNotification.Name("com.micguard.enabledChanged")
+    static let requestStatusNotification = NSNotification.Name("com.micguard.requestStatus")
 
     private init() {
         prefFile = configDir.appendingPathComponent("preferred-mic")
@@ -40,6 +41,19 @@ final class AudioMonitor {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.reloadEnabled()
+            }
+        }
+
+        // Listen for status requests from external consumers
+        DistributedNotificationCenter.default().addObserver(
+            forName: Self.requestStatusNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.postDeviceChanged()
+                DistributedNotificationCenter.default().postNotificationName(
+                    Self.enabledChangedNotification, object: nil)
             }
         }
 
@@ -63,13 +77,8 @@ final class AudioMonitor {
             log("Watching default input device changes")
         }
 
-        // Enforce preferred device on launch
+        // Enforce preferred device on launch (also broadcasts deviceChanged)
         enforce()
-
-        // Send a delayed notification so SketchyBar has time to start after a reboot
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            self?.postDeviceChanged()
-        }
     }
 
     func readEnabled() -> Bool {
@@ -141,7 +150,7 @@ final class AudioMonitor {
         postDeviceChanged()
     }
 
-    private func postDeviceChanged() {
+    func postDeviceChanged() {
         DistributedNotificationCenter.default().postNotificationName(
             NSNotification.Name("com.micguard.deviceChanged"),
             object: nil
