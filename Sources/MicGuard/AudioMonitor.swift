@@ -23,6 +23,8 @@ final class AudioMonitor {
 
     private var volumeListenerDeviceID: AudioDeviceID?
     private var muteListenerDeviceID: AudioDeviceID?
+    private var volumeListenerBlock: AudioObjectPropertyListenerBlock?
+    private var muteListenerBlock: AudioObjectPropertyListenerBlock?
 
     static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
     static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
@@ -222,6 +224,7 @@ final class AudioMonitor {
                 }
             }
         }
+        self.volumeListenerBlock = volumeHandler
         let status = AudioObjectAddPropertyListenerBlock(
             deviceID, &volumeAddress, DispatchQueue.main, volumeHandler
         )
@@ -239,9 +242,7 @@ final class AudioMonitor {
             mElement: kAudioObjectPropertyElementWildcard
         )
         if AudioObjectHasProperty(deviceID, &muteAddress) {
-            let muteStatus = AudioObjectAddPropertyListenerBlock(
-                deviceID, &muteAddress, DispatchQueue.main
-            ) { [weak self] _, _ in
+            let muteHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 Task { @MainActor in
                     guard let self else { return }
                     if let vol = AudioDevices.inputVolume(for: deviceID) {
@@ -251,6 +252,10 @@ final class AudioMonitor {
                     }
                 }
             }
+            self.muteListenerBlock = muteHandler
+            let muteStatus = AudioObjectAddPropertyListenerBlock(
+                deviceID, &muteAddress, DispatchQueue.main, muteHandler
+            )
             if muteStatus == noErr {
                 muteListenerDeviceID = deviceID
                 logger.debug("Mute listener registered for device \(deviceID, privacy: .public)")
@@ -261,24 +266,26 @@ final class AudioMonitor {
     }
 
     private func unregisterVolumeListener() {
-        if let deviceID = volumeListenerDeviceID {
+        if let deviceID = volumeListenerDeviceID, let block = volumeListenerBlock {
             var address = AudioObjectPropertyAddress(
                 mSelector: kAudioDevicePropertyVolumeScalar,
                 mScope: kAudioDevicePropertyScopeInput,
                 mElement: kAudioObjectPropertyElementWildcard
             )
-            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, { _, _ in })
+            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, block)
             volumeListenerDeviceID = nil
+            volumeListenerBlock = nil
             logger.debug("Volume listener unregistered from device \(deviceID, privacy: .public)")
         }
-        if let deviceID = muteListenerDeviceID {
+        if let deviceID = muteListenerDeviceID, let block = muteListenerBlock {
             var address = AudioObjectPropertyAddress(
                 mSelector: kAudioDevicePropertyMute,
                 mScope: kAudioDevicePropertyScopeInput,
                 mElement: kAudioObjectPropertyElementWildcard
             )
-            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, { _, _ in })
+            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, block)
             muteListenerDeviceID = nil
+            muteListenerBlock = nil
             logger.debug("Mute listener unregistered from device \(deviceID, privacy: .public)")
         }
     }
