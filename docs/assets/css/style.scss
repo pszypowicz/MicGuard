@@ -36,29 +36,56 @@
   .highlight {
     background-color: #161b22;
 
-    .c, .cd, .cm, .c1, .cs { color: #8b949e; } // comments
-    .cp { color: #8b949e; }                     // preprocessor
+    // comments
+    .c, .cd, .cm, .c1, .cs, .cp { color: #8b949e; font-style: italic; }
+    .cp { font-style: normal; }
+
+    // errors
     .err { color: #f85149; background-color: transparent; }
-    .k, .kc, .kd, .kn, .kp, .kr, .kt { color: #ff7b72; } // keywords
-    .o, .ow { color: #ff7b72; }                 // operators
-    .n, .nb { color: #c9d1d9; }                 // names/builtins
+
+    // keywords & operators
+    .k, .kc, .kd, .kn, .kp, .kr, .kt, .kv { color: #ff7b72; }
+    .o, .ow { color: #ff7b72; }
+
+    // names
+    .n { color: #c9d1d9; }
+    .nb, .bp { color: #79c0ff; }                // builtins
     .nf, .nx { color: #d2a8ff; }                // functions
-    .nc, .nn { color: #f0883e; }                // classes/namespaces
-    .na { color: #79c0ff; }                     // attributes
+    .nc { color: #f0883e; }                     // classes
+    .nn { color: #f0883e; }                     // namespaces
+    .na, .no { color: #79c0ff; }                // attributes/constants
+    .nd { color: #d2a8ff; }                     // decorators
+    .ne, .nl { color: #f0883e; }                // exceptions/labels
+    .ni { color: #c9d1d9; }                     // entity
+    .nt { color: #7ee787; }                     // tags
     .nv, .vi, .vg, .vc { color: #ffa657; }     // variables
-    .s, .sb, .sc, .sd, .s2, .sh, .s1 { color: #a5d6ff; } // strings
-    .se { color: #79c0ff; }                     // string escape
+
+    // strings
+    .s, .sb, .sc, .sd, .s2, .sh, .s1, .sx { color: #a5d6ff; }
+    .se { color: #79c0ff; }                     // escape
     .sr { color: #7ee787; }                     // regex
-    .si { color: #a5d6ff; }                     // string interpolation
-    .m, .mf, .mh, .mi, .mo { color: #79c0ff; } // numbers
-    .gd { color: #ffa198; background-color: #490202; }  // diff deleted
-    .gi { color: #56d364; background-color: #0f5323; }  // diff inserted
-    .gh { color: #e6edf3; }                     // diff header
-    .gu { color: #8b949e; }                     // diff range
-    .go { color: #8b949e; }                     // generic output
-    .gp { color: #8b949e; }                     // prompt
+    .si { color: #a5d6ff; }                     // interpolation
+    .ss { color: #79c0ff; }                     // symbol
+
+    // numbers
+    .m, .mb, .mf, .mh, .mi, .mo, .mx, .il { color: #79c0ff; }
+
+    // generic/diff
+    .gd { color: #ffa198; background-color: #490202; }
+    .ge { color: #c9d1d9; font-style: italic; }
+    .gi { color: #56d364; background-color: #0f5323; }
+    .gh { color: #e6edf3; }
+    .gr, .gt { color: #f85149; }
+    .gu { color: #8b949e; }
+    .go, .gp { color: #8b949e; }
     .gs { font-weight: bold; }
-    .gt { color: #f85149; }                     // traceback
+
+    // whitespace
+    .w { color: #6e7681; }
+
+    // table layout
+    table td { padding: 5px; }
+    table pre { margin: 0; }
   }
 
   table {
