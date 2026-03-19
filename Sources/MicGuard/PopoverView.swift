@@ -1,3 +1,4 @@
+import os
 import ServiceManagement
 import SwiftUI
 
@@ -45,7 +46,7 @@ struct PopoverView: View {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            log("Login item toggle failed: \(error)")
+            logger.error("Login item toggle failed: \(error, privacy: .public)")
         }
         isLoginEnabled = SMAppService.mainApp.status == .enabled
     }

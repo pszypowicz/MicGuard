@@ -1,6 +1,7 @@
 import CoreAudio
 import Foundation
 import Observation
+import os
 
 @Observable
 @MainActor
@@ -28,6 +29,7 @@ final class AudioMonitor {
 
     private var configWatcherSource: DispatchSourceFileSystemObject?
     private var suppressEnabledSideEffects = false
+    private var statusDebounceWork: DispatchWorkItem?
 
     private init() {}
 
@@ -66,9 +68,9 @@ final class AudioMonitor {
         }
 
         if status != noErr {
-            log("Failed to register CoreAudio listener (status: \(status))")
+            logger.error("Failed to register CoreAudio listener (status: \(status, privacy: .public))")
         } else {
-            log("Watching default input device changes")
+            logger.info("Watching default input device changes")
         }
 
         // Watch device list changes (registered once, lives for app lifetime)
@@ -88,7 +90,7 @@ final class AudioMonitor {
         }
 
         if devicesStatus != noErr {
-            log("Failed to register device list listener (status: \(devicesStatus))")
+            logger.error("Failed to register device list listener (status: \(devicesStatus, privacy: .public))")
         }
 
         // Enforce preferred device on launch (also broadcasts statusChanged)
@@ -100,7 +102,7 @@ final class AudioMonitor {
         Config.ensureConfigDir()
         let fd = open(Config.configDir.path(percentEncoded: false), O_EVTONLY)
         guard fd >= 0 else {
-            log("Failed to open config directory for watching")
+            logger.error("Failed to open config directory for watching")
             return
         }
 
@@ -119,7 +121,7 @@ final class AudioMonitor {
         }
         source.resume()
         configWatcherSource = source
-        log("Watching config directory for changes")
+        logger.info("Watching config directory for changes")
     }
 
     private func handleConfigChange() {
@@ -128,14 +130,14 @@ final class AudioMonitor {
             suppressEnabledSideEffects = true
             isEnabled = newEnabled
             suppressEnabledSideEffects = false
-            log("Config watcher: enabled changed to \(newEnabled)")
+            logger.info("Config watcher: enabled changed to \(newEnabled, privacy: .public)")
             enforce()
         }
 
         let newPreferred = Config.readPreferredDevice()
         if preferredDevice != newPreferred {
             preferredDevice = newPreferred
-            log("Config watcher: preferred device changed to '\(newPreferred)'")
+            logger.info("Config watcher: preferred device changed to '\(newPreferred, privacy: .public)'")
             enforce()
         }
     }
@@ -146,7 +148,7 @@ final class AudioMonitor {
         // No preference — use current device
         if let current = AudioDevices.currentInputDevice() {
             Config.writePreferredDevice(current.name)
-            log("Initialized preference: \(current.name)")
+            logger.info("Initialized preference: \(current.name, privacy: .public)")
             return current.name
         }
         return ""
@@ -157,9 +159,9 @@ final class AudioMonitor {
         preferredDevice = name
         if AudioDevices.setInputDevice(name: name) {
             currentDevice = name
-            log("Preferred device set to '\(name)'")
+            logger.info("Preferred device set to '\(name, privacy: .public)'")
         } else {
-            log("Failed to set input device to '\(name)'")
+            logger.error("Failed to set input device to '\(name, privacy: .public)'")
         }
     }
 
@@ -173,7 +175,7 @@ final class AudioMonitor {
             mElement: kAudioObjectPropertyElementMain
         )
         guard AudioObjectHasProperty(deviceID, &checkAddress) else {
-            log("Device \(deviceID) does not support volume — skipping listener")
+            logger.debug("Device \(deviceID, privacy: .public) does not support volume — skipping listener")
             return
         }
 
@@ -187,9 +189,9 @@ final class AudioMonitor {
             Task { @MainActor in
                 guard let self else { return }
                 if let vol = AudioDevices.inputVolume(for: deviceID) {
-                    log("Volume changed to \(vol)%")
+                    logger.debug("Volume changed to \(vol, privacy: .public)%")
                     self.inputVolume = vol
-                    self.postStatusChanged()
+                    self.debouncedPostStatusChanged()
                 }
             }
         }
@@ -198,9 +200,9 @@ final class AudioMonitor {
         )
         if status == noErr {
             volumeListenerDeviceID = deviceID
-            log("Volume listener registered for device \(deviceID)")
+            logger.debug("Volume listener registered for device \(deviceID, privacy: .public)")
         } else {
-            log("Failed to register volume listener (status: \(status))")
+            logger.error("Failed to register volume listener (status: \(status, privacy: .public))")
         }
 
         // Also listen for mute property changes
@@ -216,17 +218,17 @@ final class AudioMonitor {
                 Task { @MainActor in
                     guard let self else { return }
                     if let vol = AudioDevices.inputVolume(for: deviceID) {
-                        log("Mute changed, volume now \(vol)%")
+                        logger.debug("Mute changed, volume now \(vol, privacy: .public)%")
                         self.inputVolume = vol
-                        self.postStatusChanged()
+                        self.debouncedPostStatusChanged()
                     }
                 }
             }
             if muteStatus == noErr {
                 muteListenerDeviceID = deviceID
-                log("Mute listener registered for device \(deviceID)")
+                logger.debug("Mute listener registered for device \(deviceID, privacy: .public)")
             } else {
-                log("Failed to register mute listener (status: \(muteStatus))")
+                logger.error("Failed to register mute listener (status: \(muteStatus, privacy: .public))")
             }
         }
     }
@@ -240,7 +242,7 @@ final class AudioMonitor {
             )
             AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, { _, _ in })
             volumeListenerDeviceID = nil
-            log("Volume listener unregistered from device \(deviceID)")
+            logger.debug("Volume listener unregistered from device \(deviceID, privacy: .public)")
         }
         if let deviceID = muteListenerDeviceID {
             var address = AudioObjectPropertyAddress(
@@ -250,7 +252,7 @@ final class AudioMonitor {
             )
             AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, { _, _ in })
             muteListenerDeviceID = nil
-            log("Mute listener unregistered from device \(deviceID)")
+            logger.debug("Mute listener unregistered from device \(deviceID, privacy: .public)")
         }
     }
 
@@ -270,19 +272,30 @@ final class AudioMonitor {
             let preferred = readPreference()
             if !preferred.isEmpty, let current = AudioDevices.currentInputDevice() {
                 if current.name != preferred {
-                    log("Input changed to '\(current.name)' — reverting to '\(preferred)'")
+                    logger.info("Input changed to '\(current.name, privacy: .public)' — reverting to '\(preferred, privacy: .public)'")
                     if !AudioDevices.setInputDevice(name: preferred) {
-                        log("Failed to set input device to '\(preferred)'")
+                        logger.error("Failed to set input device to '\(preferred, privacy: .public)'")
                     } else {
                         currentDevice = preferred
                     }
                 } else {
-                    log("Input is already '\(current.name)' — no action")
+                    logger.debug("Input is already '\(current.name, privacy: .public)' — no action")
                 }
             }
         }
 
         postStatusChanged()
+    }
+
+    private func debouncedPostStatusChanged() {
+        statusDebounceWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                self?.postStatusChanged()
+            }
+        }
+        statusDebounceWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
     }
 
     func postStatusChanged() {
@@ -291,7 +304,7 @@ final class AudioMonitor {
             "device": currentDevice,
             "volume": "\(inputVolume)",
         ]
-        log("Posting status: enabled=\(isEnabled ? "1" : "0") device=\(currentDevice) volume=\(inputVolume)")
+        logger.debug("Posting status notification: enabled=\(self.isEnabled ? "1" : "0", privacy: .public) device=\(self.currentDevice, privacy: .public) volume=\(self.inputVolume, privacy: .public)")
         DistributedNotificationCenter.default().postNotificationName(
             Self.statusChangedNotification,
             object: nil,
@@ -301,12 +314,4 @@ final class AudioMonitor {
     }
 }
 
-nonisolated(unsafe) private let logDateFormatter: ISO8601DateFormatter = {
-    let formatter = ISO8601DateFormatter()
-    return formatter
-}()
-
-func log(_ msg: String) {
-    let ts = logDateFormatter.string(from: Date())
-    FileHandle.standardError.write(Data("[\(ts)] \(msg)\n".utf8))
-}
+let logger = Logger(subsystem: "com.pszypowicz.MicGuard", category: "general")

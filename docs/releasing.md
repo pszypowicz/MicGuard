@@ -6,7 +6,7 @@ title: Releasing
 
 How to publish a new MicGuard version to Homebrew.
 
-[Home](index.md) · [CLI Reference](cli.md) · [Integrations](integrations.md) · [Notifications](notifications.md)
+[Home](index.md) · [CLI Reference](cli.md) · [Debugging](debugging.md) · [Integrations](integrations.md) · [Notifications](notifications.md)
 
 ## Versioning
 

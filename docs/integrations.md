@@ -6,7 +6,7 @@ title: Integrations
 
 MicGuard posts [distributed notifications](notifications.md) whenever the input device changes, MicGuard is toggled on/off, or the app terminates. Any macOS app or script that can observe `DistributedNotificationCenter` can react to these events.
 
-[Home](index.md) · [CLI Reference](cli.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
+[Home](index.md) · [CLI Reference](cli.md) · [Debugging](debugging.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
 
 ## SketchyBar
 

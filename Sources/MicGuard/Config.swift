@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 enum Config {
     static let configDir = FileManager.default.homeDirectoryForCurrentUser
@@ -23,7 +24,7 @@ enum Config {
         do {
             try (value ? "1" : "0").write(to: enabledFile, atomically: true, encoding: .utf8)
         } catch {
-            log("Failed to write enabled state: \(error)")
+            logger.error("Failed to write enabled state: \(error, privacy: .public)")
         }
         setFilePermissions(enabledFile)
     }
@@ -41,7 +42,7 @@ enum Config {
         do {
             try name.write(to: prefFile, atomically: true, encoding: .utf8)
         } catch {
-            log("Failed to write preferred device: \(error)")
+            logger.error("Failed to write preferred device: \(error, privacy: .public)")
         }
         setFilePermissions(prefFile)
     }

@@ -20,4 +20,4 @@ MicGuard is a macOS menubar app that monitors the default input device via CoreA
 
 ## Documentation
 
-See the full docs at **[pszypowicz.github.io/MicGuard](https://pszypowicz.github.io/MicGuard/)** — covering [CLI reference](https://pszypowicz.github.io/MicGuard/cli.html), [integrations](https://pszypowicz.github.io/MicGuard/integrations.html), [notifications](https://pszypowicz.github.io/MicGuard/notifications.html), and [releasing](https://pszypowicz.github.io/MicGuard/releasing.html).
+See the full docs at **[pszypowicz.github.io/MicGuard](https://pszypowicz.github.io/MicGuard/)** — covering [CLI reference](https://pszypowicz.github.io/MicGuard/cli.html), [debugging](https://pszypowicz.github.io/MicGuard/debugging.html), [integrations](https://pszypowicz.github.io/MicGuard/integrations.html), [notifications](https://pszypowicz.github.io/MicGuard/notifications.html), and [releasing](https://pszypowicz.github.io/MicGuard/releasing.html).
