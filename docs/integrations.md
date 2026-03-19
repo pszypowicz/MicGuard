@@ -160,7 +160,9 @@ if [[ "$SENDER" == "mic_status_changed" && -n "$INFO" ]]; then
     MIC_NAME="${MIC_NAME:0:11}…"
   fi
 
-  if [[ "$ENABLED" == "0" ]]; then
+  if [[ "$ENABLED" == "0" && "$MIC_MUTED" == "1" ]]; then
+    update_bar "$SHIELD_OFF" $YELLOW "$MIC_OFF" $RED "$MIC_NAME" $RED
+  elif [[ "$ENABLED" == "0" ]]; then
     update_bar "$SHIELD_OFF" $YELLOW "$MIC_ON" $YELLOW "$MIC_NAME" $YELLOW
   elif [[ "$MIC_MUTED" == "1" ]]; then
     update_bar "$SHIELD_CHECK" $WHITE "$MIC_OFF" $RED "$MIC_NAME" $RED
