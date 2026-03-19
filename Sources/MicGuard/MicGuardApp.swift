@@ -89,7 +89,15 @@ struct MicGuardApp: App {
     }
 
     private static let version: String = {
-        let base = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
+        // When invoked via CLI symlink, Bundle.main doesn't resolve to the .app.
+        // Walk up from the real executable path to find the enclosing bundle.
+        let execURL = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0]).resolvingSymlinksInPath()
+        let appURL = execURL
+            .deletingLastPathComponent()  // MacOS/
+            .deletingLastPathComponent()  // Contents/
+            .deletingLastPathComponent()  // MicGuard.app/
+        let bundle = Bundle(url: appURL) ?? Bundle.main
+        let base = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
         #if DEBUG
         return "\(base) (\(BuildMetadata.gitHash) \(BuildMetadata.buildDate))"
         #else
