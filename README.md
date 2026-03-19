@@ -6,6 +6,8 @@
 
 Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS microphone.
 
+> **Beta:** MicGuard is pre-1.0. Backward compatibility is not guaranteed until version 1.0.0 is reached.
+
 ## Install
 
 ```bash

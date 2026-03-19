@@ -20,7 +20,11 @@ enum Config {
 
     static func writeEnabled(_ value: Bool) {
         ensureConfigDir()
-        try? (value ? "1" : "0").write(to: enabledFile, atomically: true, encoding: .utf8)
+        do {
+            try (value ? "1" : "0").write(to: enabledFile, atomically: true, encoding: .utf8)
+        } catch {
+            log("Failed to write enabled state: \(error)")
+        }
         setFilePermissions(enabledFile)
     }
 
@@ -34,7 +38,11 @@ enum Config {
 
     static func writePreferredDevice(_ name: String) {
         ensureConfigDir()
-        try? name.write(to: prefFile, atomically: true, encoding: .utf8)
+        do {
+            try name.write(to: prefFile, atomically: true, encoding: .utf8)
+        } catch {
+            log("Failed to write preferred device: \(error)")
+        }
         setFilePermissions(prefFile)
     }
 

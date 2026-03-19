@@ -3,7 +3,7 @@ import SwiftUI
 
 private func postTerminationNotification() {
     DistributedNotificationCenter.default().postNotificationName(
-        NSNotification.Name("com.micguard.appTerminated"),
+        NSNotification.Name("com.pszypowicz.MicGuard.appTerminated"),
         object: nil
     )
 }
@@ -64,8 +64,11 @@ struct MicGuardApp: App {
         } label: {
             Image(nsImage: MenuBarIcon.image(enabled: AudioMonitor.shared.isEnabled))
         }
-        .menuBarExtraStyle(.window)
+        .menuBarExtraStyle(.menu)
     }
+
+    private static let version =
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
 
     private static func handleCLI(command: String, args: [String]) {
         switch command {
@@ -100,9 +103,28 @@ struct MicGuardApp: App {
         case "ping":
             DistributedNotificationCenter.default().postNotificationName(
                 AudioMonitor.requestStatusNotification, object: nil)
+        case "version", "--version", "-v":
+            print("mic-guard \(version)")
+        case "help", "--help", "-h":
+            print("mic-guard \(version)")
+            print()
+            print("Usage: mic-guard [command]")
+            print()
+            print("Commands:")
+            print("  list       List all input devices")
+            print("  current    Print the current default input device")
+            print("  set <name> Set the default input device by name")
+            print("  enable     Enable MicGuard")
+            print("  disable    Disable MicGuard")
+            print("  status     Print whether MicGuard is enabled or disabled")
+            print("  ping       Ask the running daemon to re-broadcast its status")
+            print("  version    Print version")
+            print("  help       Show this help")
+            print()
+            print("Run with no arguments to start as a menubar daemon.")
         default:
-            fputs("Usage: mic-guard [list|current|set <name>|enable|disable|status|ping]\n", stderr)
-            fputs("  No arguments: run as daemon\n", stderr)
+            fputs("Unknown command: \(command)\n", stderr)
+            fputs("Run 'mic-guard help' for usage information.\n", stderr)
             exit(1)
         }
     }

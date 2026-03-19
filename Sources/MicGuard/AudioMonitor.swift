@@ -19,8 +19,8 @@ final class AudioMonitor {
     var currentDevice: String = ""
     var inputDevices: [(id: AudioDeviceID, name: String)] = []
 
-    static let statusChangedNotification = NSNotification.Name("com.micguard.statusChanged")
-    static let requestStatusNotification = NSNotification.Name("com.micguard.requestStatus")
+    static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
+    static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
 
     private var configWatcherSource: DispatchSourceFileSystemObject?
     private var suppressEnabledSideEffects = false
@@ -73,7 +73,7 @@ final class AudioMonitor {
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        AudioObjectAddPropertyListenerBlock(
+        let devicesStatus = AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject),
             &devicesAddress,
             DispatchQueue.main
@@ -81,6 +81,10 @@ final class AudioMonitor {
             Task { @MainActor in
                 self?.inputDevices = AudioDevices.listInputDevices()
             }
+        }
+
+        if devicesStatus != noErr {
+            log("Failed to register device list listener (status: \(devicesStatus))")
         }
 
         // Enforce preferred device on launch (also broadcasts statusChanged)

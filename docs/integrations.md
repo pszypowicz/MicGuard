@@ -4,7 +4,7 @@ title: Integrations
 
 # Integrations
 
-MicGuard posts [distributed notifications](notifications.md) whenever the input device changes, monitoring is toggled, or the app terminates. Any macOS app or script that can observe `DistributedNotificationCenter` can react to these events.
+MicGuard posts [distributed notifications](notifications.md) whenever the input device changes, MicGuard is toggled on/off, or the app terminates. Any macOS app or script that can observe `DistributedNotificationCenter` can react to these events.
 
 [Home](index.md) · [CLI Reference](cli.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
 
@@ -14,9 +14,9 @@ The reference integration is a [SketchyBar](https://github.com/FelixKratz/Sketch
 
 | State | Icon | Color | Label | Meaning |
 |-------|------|-------|-------|---------|
-| Active | nf-md-microphone | White | Device name | Mic is live, MicGuard is monitoring |
+| Active | nf-md-microphone | White | Device name | Mic is live, MicGuard is enabled |
 | Muted | nf-md-microphone_off | Red | Device name | Input volume is 0 |
-| Disabled | nf-md-microphone | Yellow | Device name | MicGuard running, monitoring off |
+| Disabled | nf-md-microphone | Yellow | Device name | MicGuard running, MicGuard disabled |
 | Off | nf-md-microphone | Yellow | "Off" | MicGuard not running or no valid device |
 
 Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs (`U+F0D6C` and `U+F0D6D`). A patched font is required.
@@ -24,7 +24,7 @@ Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs (`U+F0D6C` and `U+F0D6D
 ### Features
 
 - **Left-click** — toggle mute/unmute (sets input volume to 0 or 100)
-- **Right-click** — popup picker listing all input devices + monitoring toggle; selecting a device sets it as default and updates `preferred-mic`
+- **Right-click** — popup picker listing all input devices + enable/disable toggle; selecting a device sets it as default and updates `preferred-mic`
 
 ### Setup
 
@@ -49,8 +49,8 @@ mic=(
 )
 
 sketchybar --add event mic_clicked
-sketchybar --add event mic_status_changed "com.micguard.statusChanged"
-sketchybar --add event mic_app_terminated "com.micguard.appTerminated"
+sketchybar --add event mic_status_changed "com.pszypowicz.MicGuard.statusChanged"
+sketchybar --add event mic_app_terminated "com.pszypowicz.MicGuard.appTerminated"
 
 sketchybar --add item mic right \
   --set mic "${mic[@]}" \
@@ -60,11 +60,11 @@ sketchybar --add item mic right \
 mic-guard ping 2>/dev/null &
 ```
 
-The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast its status via `com.micguard.statusChanged`, so the mic item populates immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
+The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast its status via `com.pszypowicz.MicGuard.statusChanged`, so the mic item populates immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
 
 Key points:
-- `mic_status_changed` maps to the `com.micguard.statusChanged` distributed notification
-- `mic_app_terminated` maps to `com.micguard.appTerminated`
+- `mic_status_changed` maps to the `com.pszypowicz.MicGuard.statusChanged` distributed notification
+- `mic_app_terminated` maps to `com.pszypowicz.MicGuard.appTerminated`
 - `mic_clicked` is a custom event triggered after mute/unmute or device change to refresh the display
 - `mouse.exited` / `mouse.exited.global` close the device picker popup
 
@@ -100,7 +100,7 @@ fi
 MIC_NAME=$(mic-guard current 2>/dev/null) || exit 0
 MIC_NAME=$(echo $MIC_NAME | awk '{print $1}')
 
-# Check if monitoring is disabled
+# Check if MicGuard is disabled
 ENABLED=$(cat ~/.config/mic-guard/enabled 2>/dev/null)
 if [[ "$ENABLED" == "0" ]]; then
   sketchybar -m --set mic label="$MIC_NAME" icon=󰍬 icon.color=$YELLOW label.color=$YELLOW
@@ -119,7 +119,7 @@ fi
 
 #### 3. Click handler
 
-The click script (`plugins/mic_click.sh`) handles left-click mute/unmute, right-click device picker, and monitoring toggle:
+The click script (`plugins/mic_click.sh`) handles left-click mute/unmute, right-click device picker, and enable/disable toggle:
 
 ```bash
 #!/usr/bin/env bash
@@ -169,14 +169,14 @@ if [[ "$BUTTON" == "right" ]]; then
     INDEX=$((INDEX + 1))
   done <<< "$DEVICES"
 
-  # Determine monitoring toggle state
+  # Determine MicGuard toggle state
   ENABLED=$(cat ~/.config/mic-guard/enabled 2>/dev/null)
   if [[ "$ENABLED" == "0" ]]; then
-    MONITOR_LABEL="Enable Monitoring"
+    MONITOR_LABEL="MicGuard Disabled"
     MONITOR_ICON="󰍬"
     MONITOR_CMD="mic-guard enable"
   else
-    MONITOR_LABEL="Disable Monitoring"
+    MONITOR_LABEL="MicGuard Enabled"
     MONITOR_ICON="󰍭"
     MONITOR_CMD="mic-guard disable"
   fi
