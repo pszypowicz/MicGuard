@@ -15,13 +15,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 private func installSignalHandlers() {
-    let handler: @convention(c) (Int32) -> Void = { _ in
+    // Use DispatchSource for async-signal-safety instead of signal()
+    let sigterm = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+    sigterm.setEventHandler {
         postTerminationNotification()
         exit(0)
     }
-    signal(SIGTERM, handler)
-    signal(SIGINT, handler)
+    sigterm.resume()
+
+    let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
+    sigint.setEventHandler {
+        postTerminationNotification()
+        exit(0)
+    }
+    sigint.resume()
+
+    // Ignore default signal handling so DispatchSource receives them
+    signal(SIGTERM, SIG_IGN)
+    signal(SIGINT, SIG_IGN)
+
+    // Keep sources alive for app lifetime
+    _signalSources = [sigterm, sigint]
 }
+
+nonisolated(unsafe) private var _signalSources: [any DispatchSourceSignal] = []
 
 @main
 struct MicGuardApp: App {
@@ -50,22 +67,6 @@ struct MicGuardApp: App {
         .menuBarExtraStyle(.window)
     }
 
-    private static func readEnabledFile() -> Bool {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/mic-guard/enabled")
-        guard let data = try? String(contentsOf: url, encoding: .utf8) else { return true }
-        return data.trimmingCharacters(in: .whitespacesAndNewlines) != "0"
-    }
-
-    private static func writeEnabledFile(_ value: Bool) {
-        let configDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/mic-guard")
-        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        try? (value ? "1" : "0").write(
-            to: configDir.appendingPathComponent("enabled"),
-            atomically: true, encoding: .utf8)
-    }
-
     private static func handleCLI(command: String, args: [String]) {
         switch command {
         case "list":
@@ -82,22 +83,19 @@ struct MicGuardApp: App {
                 fputs("Usage: mic-guard set <device name>\n", stderr)
                 exit(1)
             }
-            let configDir = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".config/mic-guard")
-            try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-            try? name.write(to: configDir.appendingPathComponent("preferred-mic"), atomically: true, encoding: .utf8)
+            Config.writePreferredDevice(name)
             if !AudioDevices.setInputDevice(name: name) {
                 fputs("Failed to set input device to '\(name)'\n", stderr)
                 exit(1)
             }
         case "enable":
-            Self.writeEnabledFile(true)
+            Config.writeEnabled(true)
             print("enabled")
         case "disable":
-            Self.writeEnabledFile(false)
+            Config.writeEnabled(false)
             print("disabled")
         case "status":
-            let enabled = Self.readEnabledFile()
+            let enabled = Config.readEnabled()
             print(enabled ? "enabled" : "disabled")
         case "ping":
             DistributedNotificationCenter.default().postNotificationName(
@@ -109,4 +107,3 @@ struct MicGuardApp: App {
         }
     }
 }
-

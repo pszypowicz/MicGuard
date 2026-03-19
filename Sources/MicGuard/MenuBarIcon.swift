@@ -8,8 +8,8 @@ enum MenuBarIcon {
             let w = rect.width
             let h = rect.height
 
-            NSColor.black.setStroke()
-            NSColor.black.setFill()
+            NSColor.labelColor.setStroke()
+            NSColor.labelColor.setFill()
 
             // Shield outline
             let shield = NSBezierPath()
