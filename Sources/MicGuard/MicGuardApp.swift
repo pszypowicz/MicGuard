@@ -1,3 +1,4 @@
+import os
 import ServiceManagement
 import SwiftUI
 
@@ -56,7 +57,7 @@ struct MicGuardApp: App {
         let lockPath = Config.configDir.appendingPathComponent("lock").path
         let lockFD = open(lockPath, O_CREAT | O_WRONLY, 0o600)
         guard lockFD != -1 else {
-            log("Could not create lock file — exiting")
+            logger.error("Could not create lock file — exiting")
             exit(1)
         }
         var lock = flock(
@@ -67,12 +68,12 @@ struct MicGuardApp: App {
             // Query which process holds the lock
             var info = lock
             _ = fcntl(lockFD, F_GETLK, &info)
-            log("Another instance is already running (PID \(info.l_pid)) — exiting")
+            logger.info("Another instance is already running (PID \(info.l_pid, privacy: .public)) — exiting")
             exit(0)
         }
         // lockFD intentionally kept open — kernel releases lock on exit/crash
 
-        log("MicGuard starting")
+        logger.info("MicGuard starting")
         installSignalHandlers()
 
         AudioMonitor.shared.start()
