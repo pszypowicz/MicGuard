@@ -9,7 +9,10 @@ final class AudioMonitor {
 
     var isEnabled: Bool = true {
         didSet {
-            writeEnabled(isEnabled)
+            if !suppressEnabledSideEffects {
+                writeEnabled(isEnabled)
+            }
+            postStatusChanged()
         }
     }
     var preferredDevice: String = ""
@@ -20,8 +23,11 @@ final class AudioMonitor {
     private let prefFile: URL
     private let enabledFile: URL
 
-    static let enabledChangedNotification = NSNotification.Name("com.micguard.enabledChanged")
+    static let statusChangedNotification = NSNotification.Name("com.micguard.statusChanged")
     static let requestStatusNotification = NSNotification.Name("com.micguard.requestStatus")
+
+    private var configWatcherSource: DispatchSourceFileSystemObject?
+    private var suppressEnabledSideEffects = false
 
     private init() {
         prefFile = configDir.appendingPathComponent("preferred-mic")
@@ -29,20 +35,13 @@ final class AudioMonitor {
     }
 
     func start() {
+        suppressEnabledSideEffects = true
         isEnabled = readEnabled()
+        suppressEnabledSideEffects = false
         preferredDevice = readPreference()
         currentDevice = AudioDevices.currentInputDevice()?.name ?? ""
 
-        // Listen for CLI-triggered enable/disable changes
-        DistributedNotificationCenter.default().addObserver(
-            forName: Self.enabledChangedNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.reloadEnabled()
-            }
-        }
+        startConfigWatcher()
 
         // Listen for status requests from external consumers
         DistributedNotificationCenter.default().addObserver(
@@ -51,9 +50,7 @@ final class AudioMonitor {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.postDeviceChanged()
-                DistributedNotificationCenter.default().postNotificationName(
-                    Self.enabledChangedNotification, object: nil)
+                self?.postStatusChanged()
             }
         }
 
@@ -77,8 +74,51 @@ final class AudioMonitor {
             log("Watching default input device changes")
         }
 
-        // Enforce preferred device on launch (also broadcasts deviceChanged)
+        // Enforce preferred device on launch (also broadcasts statusChanged)
         enforce()
+    }
+
+    private func startConfigWatcher() {
+        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        let fd = open(configDir.path, O_EVTONLY)
+        guard fd >= 0 else {
+            log("Failed to open config directory for watching")
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: .write,
+            queue: .main
+        )
+        source.setEventHandler { [weak self] in
+            Task { @MainActor in
+                self?.handleConfigChange()
+            }
+        }
+        source.setCancelHandler {
+            close(fd)
+        }
+        source.resume()
+        configWatcherSource = source
+        log("Watching config directory for changes")
+    }
+
+    private func handleConfigChange() {
+        let newEnabled = readEnabled()
+        if isEnabled != newEnabled {
+            suppressEnabledSideEffects = true
+            isEnabled = newEnabled
+            suppressEnabledSideEffects = false
+            log("Config watcher: enabled changed to \(newEnabled)")
+        }
+
+        let newPreferred = readPreference()
+        if preferredDevice != newPreferred {
+            preferredDevice = newPreferred
+            log("Config watcher: preferred device changed to '\(newPreferred)'")
+            enforce()
+        }
     }
 
     func readEnabled() -> Bool {
@@ -91,13 +131,6 @@ final class AudioMonitor {
     private func writeEnabled(_ value: Bool) {
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
         try? (value ? "1" : "0").write(to: enabledFile, atomically: true, encoding: .utf8)
-    }
-
-    private func reloadEnabled() {
-        let newValue = readEnabled()
-        if isEnabled != newValue {
-            isEnabled = newValue
-        }
     }
 
     func readPreference() -> String {
@@ -147,12 +180,12 @@ final class AudioMonitor {
             }
         }
 
-        postDeviceChanged()
+        postStatusChanged()
     }
 
-    func postDeviceChanged() {
+    func postStatusChanged() {
         DistributedNotificationCenter.default().postNotificationName(
-            NSNotification.Name("com.micguard.deviceChanged"),
+            Self.statusChangedNotification,
             object: nil
         )
     }
