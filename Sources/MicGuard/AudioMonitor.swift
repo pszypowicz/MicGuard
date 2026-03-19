@@ -26,10 +26,13 @@ final class AudioMonitor {
 
     static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
     static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
+    static let toggleMuteNotification = NSNotification.Name("com.pszypowicz.MicGuard.toggleMute")
+    static let setVolumeNotification = NSNotification.Name("com.pszypowicz.MicGuard.setVolume")
 
     private var configWatcherSource: DispatchSourceFileSystemObject?
     private var suppressEnabledSideEffects = false
     private var statusDebounceWork: DispatchWorkItem?
+    private var preMuteVolume: Int = 100
 
     private init() {}
 
@@ -50,6 +53,30 @@ final class AudioMonitor {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.postStatusChanged()
+            }
+        }
+
+        DistributedNotificationCenter.default().addObserver(
+            forName: Self.toggleMuteNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.toggleMute()
+            }
+        }
+
+        DistributedNotificationCenter.default().addObserver(
+            forName: Self.setVolumeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let volumeStr = notification.userInfo?["volume"] as? String
+            Task { @MainActor in
+                guard let self,
+                      let str = volumeStr,
+                      let volume = Int(str) else { return }
+                self.setVolume(volume)
             }
         }
 
@@ -296,6 +323,51 @@ final class AudioMonitor {
         }
         statusDebounceWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+    }
+
+    func toggleMute() {
+        guard let device = AudioDevices.currentInputDevice() else {
+            logger.error("toggleMute: no current input device")
+            return
+        }
+
+        if let muted = AudioDevices.isInputMuted(for: device.id) {
+            // Device has native mute property
+            let newMuted = !muted
+            if AudioDevices.setInputMuted(for: device.id, muted: newMuted) {
+                logger.info("toggleMute: native mute set to \(newMuted, privacy: .public)")
+            } else {
+                logger.error("toggleMute: failed to set native mute")
+            }
+        } else {
+            // No mute property — emulate via volume
+            let currentVolume = AudioDevices.inputVolume(for: device.id) ?? 0
+            if currentVolume > 0 {
+                preMuteVolume = currentVolume
+                _ = AudioDevices.setInputVolume(for: device.id, volume: 0)
+                logger.info("toggleMute: soft-muted (saved volume \(self.preMuteVolume, privacy: .public))")
+            } else {
+                _ = AudioDevices.setInputVolume(for: device.id, volume: preMuteVolume)
+                logger.info("toggleMute: soft-unmuted (restored volume \(self.preMuteVolume, privacy: .public))")
+            }
+        }
+    }
+
+    func setVolume(_ volume: Int) {
+        guard let device = AudioDevices.currentInputDevice() else {
+            logger.error("setVolume: no current input device")
+            return
+        }
+        let clamped = min(max(volume, 0), 100)
+        if AudioDevices.setInputVolume(for: device.id, volume: clamped) {
+            logger.info("setVolume: set to \(clamped, privacy: .public)")
+        } else {
+            logger.error("setVolume: failed to set volume to \(clamped, privacy: .public)")
+        }
+        // If setting volume > 0 and device has native mute, also unmute
+        if clamped > 0, AudioDevices.isInputMuted(for: device.id) == true {
+            _ = AudioDevices.setInputMuted(for: device.id, muted: false)
+        }
     }
 
     func postStatusChanged() {

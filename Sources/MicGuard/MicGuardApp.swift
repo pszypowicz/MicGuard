@@ -127,6 +127,23 @@ struct MicGuardApp: App {
         case "status":
             let enabled = Config.readEnabled()
             print(enabled ? "enabled" : "disabled")
+        case "volume":
+            guard let volumeStr = args.first, let volume = Int(volumeStr),
+                  volume >= 0, volume <= 100 else {
+                fputs("Usage: mic-guard volume <0-100>\n", stderr)
+                exit(1)
+            }
+            guard let device = AudioDevices.currentInputDevice() else {
+                fputs("No input device found\n", stderr)
+                exit(1)
+            }
+            if !AudioDevices.setInputVolume(for: device.id, volume: volume) {
+                fputs("Failed to set volume\n", stderr)
+                exit(1)
+            }
+        case "mute":
+            DistributedNotificationCenter.default().postNotificationName(
+                AudioMonitor.toggleMuteNotification, object: nil)
         case "ping":
             DistributedNotificationCenter.default().postNotificationName(
                 AudioMonitor.requestStatusNotification, object: nil)
@@ -141,6 +158,8 @@ struct MicGuardApp: App {
             print("  list       List all input devices")
             print("  current    Print the current default input device")
             print("  set <name> Set the default input device by name")
+            print("  volume <n> Set input volume (0-100)")
+            print("  mute       Toggle mute on the current input device")
             print("  enable     Enable MicGuard")
             print("  disable    Disable MicGuard")
             print("  status     Print whether MicGuard is enabled or disabled")

@@ -38,6 +38,22 @@ Set the default input device by name.
 $ mic-guard set "External USB Mic"
 ```
 
+### `mic-guard volume <0-100>`
+
+Set the input volume directly via CoreAudio. Runs without the daemon.
+
+```bash
+$ mic-guard volume 50
+```
+
+### `mic-guard mute`
+
+Toggle mute on the current input device. Posts a notification to the running daemon, which handles the toggle (using native mute if the device supports it, or soft-mute via volume otherwise).
+
+```bash
+$ mic-guard mute
+```
+
 ### `mic-guard enable`
 
 Enable MicGuard. It will revert the default input device whenever it changes away from your preferred mic.
