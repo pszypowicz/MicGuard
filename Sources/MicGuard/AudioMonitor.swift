@@ -378,12 +378,21 @@ final class AudioMonitor {
     }
 
     func postStatusChanged() {
+        var isMuted = false
+        if let device = AudioDevices.currentInputDevice() {
+            if let nativeMute = AudioDevices.isInputMuted(for: device.id) {
+                isMuted = nativeMute
+            } else {
+                isMuted = inputVolume == 0
+            }
+        }
         let info: [String: String] = [
             "enabled": isEnabled ? "1" : "0",
             "device": currentDevice,
             "volume": "\(inputVolume)",
+            "muted": isMuted ? "1" : "0",
         ]
-        logger.debug("Posting status notification: enabled=\(self.isEnabled ? "1" : "0", privacy: .public) device=\(self.currentDevice, privacy: .public) volume=\(self.inputVolume, privacy: .public)")
+        logger.debug("Posting status notification: enabled=\(self.isEnabled ? "1" : "0", privacy: .public) device=\(self.currentDevice, privacy: .public) volume=\(self.inputVolume, privacy: .public) muted=\(isMuted ? "1" : "0", privacy: .public)")
         DistributedNotificationCenter.default().postNotificationName(
             Self.statusChangedNotification,
             object: nil,
