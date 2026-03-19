@@ -59,6 +59,53 @@ enum AudioDevices {
         ) == noErr
     }
 
+    static func setInputVolume(for deviceID: AudioDeviceID, volume: Int) -> Bool {
+        let scalar = Float32(min(max(volume, 0), 100)) / 100.0
+        for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: element
+            )
+            guard AudioObjectHasProperty(deviceID, &address) else { continue }
+            var value = scalar
+            let status = AudioObjectSetPropertyData(
+                deviceID, &address, 0, nil,
+                UInt32(MemoryLayout<Float32>.size), &value
+            )
+            return status == noErr
+        }
+        return false
+    }
+
+    static func isInputMuted(for deviceID: AudioDeviceID) -> Bool? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectHasProperty(deviceID, &address) else { return nil }
+        var muted: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &muted) == noErr
+        else { return nil }
+        return muted != 0
+    }
+
+    static func setInputMuted(for deviceID: AudioDeviceID, muted: Bool) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectHasProperty(deviceID, &address) else { return false }
+        var value: UInt32 = muted ? 1 : 0
+        return AudioObjectSetPropertyData(
+            deviceID, &address, 0, nil,
+            UInt32(MemoryLayout<UInt32>.size), &value
+        ) == noErr
+    }
+
     static func inputVolume(for deviceID: AudioDeviceID) -> Int? {
         // Try master channel (element 0) first, then fall back to first channel (element 1)
         for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {

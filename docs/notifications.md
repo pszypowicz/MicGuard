@@ -15,6 +15,8 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 | `com.pszypowicz.MicGuard.statusChanged` | Outbound | Device change, enabled toggle, app launch, ping response |
 | `com.pszypowicz.MicGuard.appTerminated` | Outbound | The app is about to quit |
 | `com.pszypowicz.MicGuard.requestStatus` | Inbound | External consumers post this to request a status re-broadcast |
+| `com.pszypowicz.MicGuard.toggleMute` | Inbound | Toggle mute on the current input device |
+| `com.pszypowicz.MicGuard.setVolume` | Inbound | Set input volume (expects `userInfo["volume"]` as string 0-100) |
 
 ## Observing notifications
 
