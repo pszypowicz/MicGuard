@@ -12,13 +12,9 @@ MicGuard posts [distributed notifications](notifications.md) whenever the input 
 
 The reference integration is a [SketchyBar](https://github.com/FelixKratz/SketchyBar) item that shows mic status in the menubar using a two-item layout: a **shield** item (icon only) representing MicGuard protection status, and a **mic** item (icon + label) representing audio state and device name.
 
-```
- [mic.shield]  [mic              ]
-  icon only     icon + label=Name
-  ← shield →   ← mic + name →
-```
+Two items sit on the right side of the bar. `mic` is added first (rightmost), then `mic.shield` is added to its left. Together they read as a single visual unit:
 
-Both items sit on the right side. `mic` is added first (rightmost), then `mic.shield` is added second (appears to its left). Both icons render at the default 17pt Nerd Font size since they each use their item's `icon` field.
+`[mic.shield][mic]` — shield icon, then mic icon + device name label.
 
 Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs. A patched font is required.
 
