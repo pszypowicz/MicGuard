@@ -12,10 +12,9 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 | Notification | Direction | Posted when |
 |---|---|---|
-| `com.micguard.deviceChanged` | Outbound | The default input device changes (detected by CoreAudio listener), and on app launch |
-| `com.micguard.enabledChanged` | Outbound | Monitoring is toggled via `mic-guard enable` / `mic-guard disable` |
+| `com.micguard.statusChanged` | Outbound | Device change, enabled toggle, app launch, ping response |
 | `com.micguard.appTerminated` | Outbound | The app is about to quit |
-| `com.micguard.requestStatus` | Inbound | External consumers post this to request a status re-broadcast; MicGuard responds with `deviceChanged` and `enabledChanged` |
+| `com.micguard.requestStatus` | Inbound | External consumers post this to request a status re-broadcast |
 
 ## Observing notifications
 
@@ -27,11 +26,11 @@ import Foundation
 let center = DistributedNotificationCenter.default()
 
 center.addObserver(
-    forName: NSNotification.Name("com.micguard.deviceChanged"),
+    forName: NSNotification.Name("com.micguard.statusChanged"),
     object: nil,
     queue: .main
 ) { notification in
-    print("Input device changed")
+    print("MicGuard status changed")
 }
 ```
 
@@ -41,10 +40,10 @@ SketchyBar can subscribe to distributed notifications as custom events:
 
 ```bash
 # Register the distributed notification as a SketchyBar event
-sketchybar --add event mic_device_changed "com.micguard.deviceChanged"
+sketchybar --add event mic_status_changed "com.micguard.statusChanged"
 
 # Subscribe an item to the event
-sketchybar --subscribe mic mic_device_changed
+sketchybar --subscribe mic mic_status_changed
 ```
 
 ### Shell (generic)

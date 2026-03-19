@@ -50,6 +50,22 @@ struct MicGuardApp: App {
         .menuBarExtraStyle(.window)
     }
 
+    private static func readEnabledFile() -> Bool {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/mic-guard/enabled")
+        guard let data = try? String(contentsOf: url, encoding: .utf8) else { return true }
+        return data.trimmingCharacters(in: .whitespacesAndNewlines) != "0"
+    }
+
+    private static func writeEnabledFile(_ value: Bool) {
+        let configDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/mic-guard")
+        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+        try? (value ? "1" : "0").write(
+            to: configDir.appendingPathComponent("enabled"),
+            atomically: true, encoding: .utf8)
+    }
+
     private static func handleCLI(command: String, args: [String]) {
         switch command {
         case "list":
@@ -75,17 +91,13 @@ struct MicGuardApp: App {
                 exit(1)
             }
         case "enable":
-            writeEnabledFile(true)
-            DistributedNotificationCenter.default().postNotificationName(
-                AudioMonitor.enabledChangedNotification, object: nil)
+            Self.writeEnabledFile(true)
             print("enabled")
         case "disable":
-            writeEnabledFile(false)
-            DistributedNotificationCenter.default().postNotificationName(
-                AudioMonitor.enabledChangedNotification, object: nil)
+            Self.writeEnabledFile(false)
             print("disabled")
         case "status":
-            let enabled = readEnabledFile()
+            let enabled = Self.readEnabledFile()
             print(enabled ? "enabled" : "disabled")
         case "ping":
             DistributedNotificationCenter.default().postNotificationName(
@@ -98,18 +110,3 @@ struct MicGuardApp: App {
     }
 }
 
-private func readEnabledFile() -> Bool {
-    let url = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/mic-guard/enabled")
-    guard let data = try? String(contentsOf: url, encoding: .utf8) else { return true }
-    return data.trimmingCharacters(in: .whitespacesAndNewlines) != "0"
-}
-
-private func writeEnabledFile(_ value: Bool) {
-    let configDir = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/mic-guard")
-    try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-    try? (value ? "1" : "0").write(
-        to: configDir.appendingPathComponent("enabled"),
-        atomically: true, encoding: .utf8)
-}
