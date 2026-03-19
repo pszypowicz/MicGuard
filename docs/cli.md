@@ -8,6 +8,13 @@ MicGuard doubles as a CLI tool. The `mic-guard` binary is symlinked to `/usr/loc
 
 [Home](index.md) · [Debugging](debugging.md) · [Integrations](integrations.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
 
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Error (invalid arguments, device not found, etc.) |
+
 ## Commands
 
 ### `mic-guard list`
@@ -32,7 +39,7 @@ External USB Mic
 
 ### `mic-guard set <name>`
 
-Set the default input device by name.
+Set the default input device by name. Also updates the `preferred-mic` config file.
 
 ```bash
 $ mic-guard set "External USB Mic"
@@ -48,7 +55,7 @@ $ mic-guard volume 50
 
 ### `mic-guard mute`
 
-Toggle mute on the current input device. Posts a notification to the running daemon, which handles the toggle (using native mute if the device supports it, or soft-mute via volume otherwise).
+Toggle mute on the current input device. Posts a notification to the running daemon, which handles the toggle (using native mute if the device supports it, or soft-mute via volume otherwise). Requires the MicGuard daemon to be running.
 
 ```bash
 $ mic-guard mute
@@ -85,7 +92,7 @@ Print the version. Also accepts `--version` and `-v`.
 
 ```bash
 $ mic-guard version
-mic-guard 0.5.0
+mic-guard <version>
 ```
 
 ### `mic-guard help`

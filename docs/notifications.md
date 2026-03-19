@@ -18,6 +18,31 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 | `com.pszypowicz.MicGuard.toggleMute` | Inbound | Toggle mute on the current input device |
 | `com.pszypowicz.MicGuard.setVolume` | Inbound | Set input volume (expects `userInfo["volume"]` as string 0-100) |
 
+## Payload schema
+
+### `statusChanged` userInfo
+
+| Key | Type | Values |
+|-----|------|--------|
+| `enabled` | String | `"1"` (enabled) or `"0"` (disabled) |
+| `device` | String | Current input device name (e.g. `"MacBook Pro Microphone"`) |
+| `volume` | String | Input volume `"0"`–`"100"` |
+| `muted` | String | `"1"` (muted) or `"0"` (not muted) |
+
+Volume and mute changes are debounced (100ms) before posting `statusChanged`.
+
+### `setVolume` userInfo
+
+| Key | Type | Values |
+|-----|------|--------|
+| `volume` | String | Desired volume `"0"`–`"100"` |
+
+Other notifications carry no userInfo payload.
+
+## API stability
+
+MicGuard is pre-1.0. Notification names and payload schema may change before version 1.0.0.
+
 ## Observing notifications
 
 ### Swift
@@ -32,7 +57,12 @@ center.addObserver(
     object: nil,
     queue: .main
 ) { notification in
-    print("MicGuard status changed")
+    let info = notification.userInfo as? [String: String] ?? [:]
+    let enabled = info["enabled"] == "1"
+    let device = info["device"] ?? ""
+    let volume = info["volume"] ?? "0"
+    let muted = info["muted"] == "1"
+    print("MicGuard: enabled=\(enabled) device=\(device) volume=\(volume) muted=\(muted)")
 }
 ```
 
