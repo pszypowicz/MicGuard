@@ -7,7 +7,12 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MicGuard",
-            exclude: ["Info.plist"]
-        )
+            exclude: ["Info.plist"],
+            plugins: [.plugin(name: "BuildMetadata")]
+        ),
+        .plugin(
+            name: "BuildMetadata",
+            capability: .buildTool()
+        ),
     ]
 )

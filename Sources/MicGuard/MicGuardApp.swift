@@ -51,7 +51,27 @@ struct MicGuardApp: App {
             exit(0)
         }
 
-        // Daemon mode
+        // Daemon mode — ensure single instance via fcntl lock file
+        Config.ensureConfigDir()
+        let lockPath = Config.configDir.appendingPathComponent("lock").path
+        let lockFD = open(lockPath, O_CREAT | O_WRONLY, 0o600)
+        guard lockFD != -1 else {
+            log("Could not create lock file — exiting")
+            exit(1)
+        }
+        var lock = flock(
+            l_start: 0, l_len: 0, l_pid: getpid(),
+            l_type: Int16(F_WRLCK), l_whence: Int16(SEEK_SET)
+        )
+        if fcntl(lockFD, F_SETLK, &lock) == -1 {
+            // Query which process holds the lock
+            var info = lock
+            _ = fcntl(lockFD, F_GETLK, &info)
+            log("Another instance is already running (PID \(info.l_pid)) — exiting")
+            exit(0)
+        }
+        // lockFD intentionally kept open — kernel releases lock on exit/crash
+
         log("MicGuard starting")
         installSignalHandlers()
 
@@ -67,8 +87,14 @@ struct MicGuardApp: App {
         .menuBarExtraStyle(.menu)
     }
 
-    private static let version =
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
+    private static let version: String = {
+        let base = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
+        #if DEBUG
+        return "\(base) (\(BuildMetadata.gitHash) \(BuildMetadata.buildDate))"
+        #else
+        return "\(base) (\(BuildMetadata.gitHash))"
+        #endif
+    }()
 
     private static func handleCLI(command: String, args: [String]) {
         switch command {

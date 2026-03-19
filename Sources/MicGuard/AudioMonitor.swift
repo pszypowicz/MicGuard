@@ -11,13 +11,17 @@ final class AudioMonitor {
         didSet {
             if !suppressEnabledSideEffects {
                 Config.writeEnabled(isEnabled)
+                enforce()
             }
-            postStatusChanged()
         }
     }
     var preferredDevice: String = ""
     var currentDevice: String = ""
     var inputDevices: [(id: AudioDeviceID, name: String)] = []
+    var inputVolume: Int = 0
+
+    private var volumeListenerDeviceID: AudioDeviceID?
+    private var muteListenerDeviceID: AudioDeviceID?
 
     static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
     static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
@@ -125,6 +129,7 @@ final class AudioMonitor {
             isEnabled = newEnabled
             suppressEnabledSideEffects = false
             log("Config watcher: enabled changed to \(newEnabled)")
+            enforce()
         }
 
         let newPreferred = Config.readPreferredDevice()
@@ -158,9 +163,108 @@ final class AudioMonitor {
         }
     }
 
+    private func registerVolumeListener(for deviceID: AudioDeviceID) {
+        unregisterVolumeListener()
+
+        // Check if device supports volume (use element 0 — wildcard isn't valid for HasProperty)
+        var checkAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectHasProperty(deviceID, &checkAddress) else {
+            log("Device \(deviceID) does not support volume — skipping listener")
+            return
+        }
+
+        // Listen on wildcard element to catch per-channel volume changes (elements 1, 2, …)
+        var volumeAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementWildcard
+        )
+        let volumeHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if let vol = AudioDevices.inputVolume(for: deviceID) {
+                    log("Volume changed to \(vol)%")
+                    self.inputVolume = vol
+                    self.postStatusChanged()
+                }
+            }
+        }
+        let status = AudioObjectAddPropertyListenerBlock(
+            deviceID, &volumeAddress, DispatchQueue.main, volumeHandler
+        )
+        if status == noErr {
+            volumeListenerDeviceID = deviceID
+            log("Volume listener registered for device \(deviceID)")
+        } else {
+            log("Failed to register volume listener (status: \(status))")
+        }
+
+        // Also listen for mute property changes
+        var muteAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementWildcard
+        )
+        if AudioObjectHasProperty(deviceID, &muteAddress) {
+            let muteStatus = AudioObjectAddPropertyListenerBlock(
+                deviceID, &muteAddress, DispatchQueue.main
+            ) { [weak self] _, _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    if let vol = AudioDevices.inputVolume(for: deviceID) {
+                        log("Mute changed, volume now \(vol)%")
+                        self.inputVolume = vol
+                        self.postStatusChanged()
+                    }
+                }
+            }
+            if muteStatus == noErr {
+                muteListenerDeviceID = deviceID
+                log("Mute listener registered for device \(deviceID)")
+            } else {
+                log("Failed to register mute listener (status: \(muteStatus))")
+            }
+        }
+    }
+
+    private func unregisterVolumeListener() {
+        if let deviceID = volumeListenerDeviceID {
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: kAudioObjectPropertyElementWildcard
+            )
+            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, { _, _ in })
+            volumeListenerDeviceID = nil
+            log("Volume listener unregistered from device \(deviceID)")
+        }
+        if let deviceID = muteListenerDeviceID {
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyMute,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: kAudioObjectPropertyElementWildcard
+            )
+            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, { _, _ in })
+            muteListenerDeviceID = nil
+            log("Mute listener unregistered from device \(deviceID)")
+        }
+    }
+
     private func enforce() {
-        // Always update current device
-        currentDevice = AudioDevices.currentInputDevice()?.name ?? ""
+        // Always update current device and volume
+        let currentInput = AudioDevices.currentInputDevice()
+        currentDevice = currentInput?.name ?? ""
+
+        if let device = currentInput {
+            inputVolume = AudioDevices.inputVolume(for: device.id) ?? 0
+            if volumeListenerDeviceID != device.id {
+                registerVolumeListener(for: device.id)
+            }
+        }
 
         if isEnabled {
             let preferred = readPreference()
@@ -182,9 +286,17 @@ final class AudioMonitor {
     }
 
     func postStatusChanged() {
+        let info: [String: String] = [
+            "enabled": isEnabled ? "1" : "0",
+            "device": currentDevice,
+            "volume": "\(inputVolume)",
+        ]
+        log("Posting status: enabled=\(isEnabled ? "1" : "0") device=\(currentDevice) volume=\(inputVolume)")
         DistributedNotificationCenter.default().postNotificationName(
             Self.statusChangedNotification,
-            object: nil
+            object: nil,
+            userInfo: info,
+            deliverImmediately: true
         )
     }
 }

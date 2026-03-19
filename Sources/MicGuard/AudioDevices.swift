@@ -59,6 +59,24 @@ enum AudioDevices {
         ) == noErr
     }
 
+    static func inputVolume(for deviceID: AudioDeviceID) -> Int? {
+        // Try master channel (element 0) first, then fall back to first channel (element 1)
+        for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: element
+            )
+            guard AudioObjectHasProperty(deviceID, &address) else { continue }
+            var volume: Float32 = 0
+            var size = UInt32(MemoryLayout<Float32>.size)
+            guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume) == noErr
+            else { continue }
+            return Int((volume * 100).rounded())
+        }
+        return nil
+    }
+
     private static func deviceName(_ id: AudioDeviceID) -> String? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioObjectPropertyName,

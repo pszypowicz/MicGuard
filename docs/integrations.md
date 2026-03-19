@@ -10,16 +10,30 @@ MicGuard posts [distributed notifications](notifications.md) whenever the input 
 
 ## SketchyBar
 
-The reference integration is a [SketchyBar](https://github.com/FelixKratz/SketchyBar) item that shows mic status in the menubar with 4 visual states:
+The reference integration is a [SketchyBar](https://github.com/FelixKratz/SketchyBar) item that shows mic status in the menubar using a two-item layout: a **shield** item (icon only) representing MicGuard protection status, and a **mic** item (icon + label) representing audio state and device name.
 
-| State | Icon | Color | Label | Meaning |
-|-------|------|-------|-------|---------|
-| Active | nf-md-microphone | White | Device name | Mic is live, MicGuard is enabled |
-| Muted | nf-md-microphone_off | Red | Device name | Input volume is 0 |
-| Disabled | nf-md-microphone | Yellow | Device name | MicGuard running, MicGuard disabled |
-| Off | nf-md-microphone | Yellow | "Off" | MicGuard not running or no valid device |
+```
+ [mic.shield]  [mic          ]
+  icon=󰕥       icon=󰍬 label=Name
+  ← shield →   ← mic + name →
+```
 
-Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs (`U+F0D6C` and `U+F0D6D`). A patched font is required.
+Both items sit on the right side. `mic` is added first (rightmost), then `mic.shield` is added second (appears to its left). Both icons render at the default 17pt Nerd Font size since they each use their item's `icon` field.
+
+| MicGuard | Mic | mic.shield icon | mic.shield color | mic icon | mic label | mic color |
+|----------|-----|-----------------|------------------|----------|-----------|-----------|
+| Enabled | Active | 󰕥 shield_check | White | 󰍬 | Name | White |
+| Enabled | Muted | 󰕥 shield_check | White | 󰍭 | Name | Red |
+| Disabled | Active | 󰦞 shield_off | Yellow | 󰍬 | Name | Yellow |
+| Disabled | Muted | 󰦞 shield_off | Yellow | 󰍭 | Name | Red |
+| App off | — | 󰦞 shield_off + "Off" | Red | *(hidden)* | — | — |
+
+Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs. A patched font is required.
+
+- `nf-md-shield_check` — `U+F0565` (󰕥)
+- `nf-md-shield_off` — `U+F099E` (󰦞)
+- `nf-md-microphone` — `U+F036C` (󰍬)
+- `nf-md-microphone_off` — `U+F036D` (󰍭)
 
 ### Features
 
@@ -28,19 +42,22 @@ Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs (`U+F0D6C` and `U+F0D6D
 
 ### Setup
 
-#### 1. Register events and create the item
+#### 1. Register events and create items
 
 In your SketchyBar items directory (e.g. `items/mic.sh`):
 
 ```bash
 #!/usr/bin/env bash
 
+set -e
+
 mic=(
   updates=on
   update_freq=60
+  icon.width=20
   label.drawing=on
-  icon.width=22
   padding_right=4
+  padding_left=0
   label.padding_right=2
   popup.align=right
   popup.height=0
@@ -48,29 +65,50 @@ mic=(
   click_script="$PLUGIN_DIR/mic_click.sh"
 )
 
+mic_shield=(
+  icon.drawing=on
+  icon.width=20
+  label.drawing=off
+  padding_right=0
+  padding_left=5
+  click_script="$PLUGIN_DIR/mic_click.sh"
+)
+
+# Events
 sketchybar --add event mic_clicked
 sketchybar --add event mic_status_changed "com.pszypowicz.MicGuard.statusChanged"
 sketchybar --add event mic_app_terminated "com.pszypowicz.MicGuard.appTerminated"
 
+# mic item (rightmost — mic icon + device name label)
 sketchybar --add item mic right \
   --set mic "${mic[@]}" \
   --subscribe mic mic_clicked mic_status_changed mic_app_terminated mouse.exited mouse.exited.global
+
+# mic.shield item (left of mic — shield icon only)
+sketchybar --add item mic.shield right \
+  --set mic.shield "${mic_shield[@]}" \
+  --subscribe mic.shield mouse.exited mouse.exited.global
 
 # Request current status from MicGuard
 mic-guard ping 2>/dev/null &
 ```
 
-The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast its status via `com.pszypowicz.MicGuard.statusChanged`, so the mic item populates immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
+The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast its status via `com.pszypowicz.MicGuard.statusChanged`, so both items populate immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
 
 Key points:
-- `mic_status_changed` maps to the `com.pszypowicz.MicGuard.statusChanged` distributed notification
+- Two items: `mic` (mic icon + device name label) and `mic.shield` (shield icon only)
+- `mic_status_changed` maps to the `com.pszypowicz.MicGuard.statusChanged` distributed notification. The notification includes a `userInfo` payload with all state, so the plugin can skip subprocess calls on the fast path:
+  - `enabled` — `"1"` or `"0"`
+  - `device` — current input device name (e.g. `"MacBook Pro Microphone"`)
+  - `volume` — input volume `"0"`–`"100"`
 - `mic_app_terminated` maps to `com.pszypowicz.MicGuard.appTerminated`
 - `mic_clicked` is a custom event triggered after mute/unmute or device change to refresh the display
 - `mouse.exited` / `mouse.exited.global` close the device picker popup
+- Padding is tightened between items so they read as a visual unit
 
 #### 2. Update script
 
-The plugin script (`plugins/mic.sh`) runs on every subscribed event and periodic update:
+The plugin script (`plugins/mic.sh`) runs on every subscribed event and periodic update. It updates both `mic.shield` and `mic` in a single `sketchybar` call:
 
 ```bash
 #!/usr/bin/env bash
@@ -84,36 +122,53 @@ if [[ "$SENDER" == "mouse.exited" || "$SENDER" == "mouse.exited.global" ]]; then
   exit 0
 fi
 
-# MicGuard app terminated — show off state
+# Nerd Font glyphs
+SHIELD_CHECK=󰕥  # nf-md-shield_check (U+F0565)
+SHIELD_OFF=󰦞   # nf-md-shield_off (U+F099E)
+MIC_ON=󰍬       # nf-md-microphone (U+F036C)
+MIC_OFF=󰍭      # nf-md-microphone_off (U+F036D)
+
+# Helper: update both items in a single sketchybar call
+update_bar() {
+  local shield_icon=$1 shield_color=$2 mic_icon=$3 mic_color=$4 mic_label=$5 label_color=$6
+  sketchybar -m \
+    --set mic.shield icon="$shield_icon" icon.color=$shield_color label.drawing=off drawing=on \
+    --set mic icon="$mic_icon" icon.color=$mic_color label="$mic_label" label.color=$label_color drawing=on
+}
+
+# Show shield with "Off" label, hide mic item
+show_off() {
+  sketchybar -m \
+    --set mic.shield icon="$SHIELD_OFF" icon.color=$RED label="Off" label.color=$RED label.drawing=on drawing=on \
+    --set mic drawing=off
+}
+
+# MicGuard app terminated
 if [[ "$SENDER" == "mic_app_terminated" ]]; then
-  # Nerd Font: nf-md-microphone (U+F0D6C)
-  sketchybar -m --set mic label="Off" icon=󰍬 icon.color=$YELLOW label.color=$YELLOW
+  show_off
   exit 0
 fi
 
-# Check if MicGuard.app is running
-if ! pgrep -f 'MicGuard.app/Contents/MacOS/MicGuard' >/dev/null 2>&1; then
-  sketchybar -m --set mic label="Off" icon=󰍬 icon.color=$YELLOW label.color=$YELLOW
+# Fast path: notification from MicGuard with full state in $INFO
+if [[ "$SENDER" == "mic_status_changed" && -n "$INFO" ]]; then
+  ENABLED=$(echo "$INFO" | sed -n 's/.*"enabled"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  MIC_NAME=$(echo "$INFO" | sed -n 's/.*"device"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  MIC_VOLUME=$(echo "$INFO" | sed -n 's/.*"volume"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  MIC_NAME=$(echo "$MIC_NAME" | awk '{print $1}')
+
+  if [[ "$ENABLED" == "0" ]]; then
+    update_bar "$SHIELD_OFF" $YELLOW "$MIC_ON" $YELLOW "$MIC_NAME" $YELLOW
+  elif [[ "${MIC_VOLUME:-0}" -eq 0 ]]; then
+    update_bar "$SHIELD_CHECK" $WHITE "$MIC_OFF" $RED "$MIC_NAME" $RED
+  else
+    update_bar "$SHIELD_CHECK" $WHITE "$MIC_ON" $WHITE "$MIC_NAME" $WHITE
+  fi
   exit 0
 fi
 
-MIC_NAME=$(mic-guard current 2>/dev/null) || exit 0
-MIC_NAME=$(echo $MIC_NAME | awk '{print $1}')
-
-# Check if MicGuard is disabled
-ENABLED=$(cat ~/.config/mic-guard/enabled 2>/dev/null)
-if [[ "$ENABLED" == "0" ]]; then
-  sketchybar -m --set mic label="$MIC_NAME" icon=󰍬 icon.color=$YELLOW label.color=$YELLOW
-  exit 0
-fi
-
-MIC_VOLUME=$(osascript -e 'input volume of (get volume settings)' 2>/dev/null) || exit 0
-
-if [[ $MIC_VOLUME -eq 0 ]]; then
-  # Nerd Font: nf-md-microphone_off (U+F0D6D)
-  sketchybar -m --set mic label="$MIC_NAME" icon=󰍭 icon.color=$RED label.color=$RED
-else
-  sketchybar -m --set mic label="$MIC_NAME" icon=󰍬 icon.color=$WHITE label.color=$WHITE
+# Health check: periodic 60s update / mic_clicked — only detects a dead app
+if ! pgrep -xq MicGuard; then
+  show_off
 fi
 ```
 
@@ -130,7 +185,7 @@ source "$CONFIG_DIR/colors.sh"
 PREF_FILE="$HOME/.config/mic-guard/preferred-mic"
 
 # Do nothing if MicGuard.app is not running
-if ! pgrep -f 'MicGuard.app/Contents/MacOS/MicGuard' >/dev/null 2>&1; then
+if ! pgrep -xq MicGuard; then
   exit 0
 fi
 
@@ -139,7 +194,9 @@ if [[ "$BUTTON" == "right" ]]; then
   DEVICES=$(mic-guard list)
   CURRENT=$(mic-guard current)
 
+  # Remove existing popup items from both mic and mic.shield
   sketchybar --remove '/mic\.(device|sep|monitoring)\..*/' 2>/dev/null
+  sketchybar --remove '/mic\.shield\.(device|sep|monitoring)\..*/' 2>/dev/null
 
   INDEX=0
   while IFS= read -r device; do
@@ -169,15 +226,15 @@ if [[ "$BUTTON" == "right" ]]; then
     INDEX=$((INDEX + 1))
   done <<< "$DEVICES"
 
-  # Determine MicGuard toggle state
+  # Determine MicGuard toggle — label shows what clicking will do
   ENABLED=$(cat ~/.config/mic-guard/enabled 2>/dev/null)
   if [[ "$ENABLED" == "0" ]]; then
-    MONITOR_LABEL="MicGuard Disabled"
-    MONITOR_ICON="󰍬"
+    MONITOR_LABEL="Enable MicGuard"
+    MONITOR_ICON="󰕥"   # nf-md-shield_check
     MONITOR_CMD="mic-guard enable"
   else
-    MONITOR_LABEL="MicGuard Enabled"
-    MONITOR_ICON="󰍭"
+    MONITOR_LABEL="Disable MicGuard"
+    MONITOR_ICON="󰦞"   # nf-md-shield_off
     MONITOR_CMD="mic-guard disable"
   fi
 
@@ -212,12 +269,19 @@ if [[ "$BUTTON" == "right" ]]; then
   sketchybar --set mic popup.drawing=toggle
 else
   # Left-click: mute/unmute toggle
+  MIC_NAME=$(mic-guard current)
+  MIC_NAME=$(echo "$MIC_NAME" | awk '{print $1}')
+
+  VALIDATED_MIC_NAME=$(echo "$MIC_NAME" | iconv -f UTF-8 -t UTF-8//IGNORE)
+
   MIC_VOLUME=$(osascript -e 'input volume of (get volume settings)')
 
-  if [[ $MIC_VOLUME -gt 0 ]]; then
-    osascript -e 'set volume input volume 0'
-  else
-    osascript -e 'set volume input volume 100'
+  if ! [[ "$MIC_NAME" != "$VALIDATED_MIC_NAME" || -z "$MIC_NAME" ]]; then
+    if [[ $MIC_VOLUME -lt 100 ]]; then
+      osascript -e 'set volume input volume 100'
+    elif [[ $MIC_VOLUME -gt 0 ]]; then
+      osascript -e 'set volume input volume 0'
+    fi
   fi
 
   sketchybar --trigger mic_clicked
