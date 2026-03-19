@@ -1,5 +1,4 @@
 import os
-import ServiceManagement
 import SwiftUI
 
 private func postTerminationNotification() {
@@ -98,11 +97,7 @@ struct MicGuardApp: App {
             .deletingLastPathComponent()  // MicGuard.app/
         let bundle = Bundle(url: appURL) ?? Bundle.main
         let base = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
-        #if DEBUG
-        return "\(base) (\(BuildMetadata.gitHash) \(BuildMetadata.buildDate))"
-        #else
-        return "\(base) (\(BuildMetadata.gitHash))"
-        #endif
+        return Config.formatVersion(base: base)
     }()
 
     private static func handleCLI(command: String, args: [String]) {

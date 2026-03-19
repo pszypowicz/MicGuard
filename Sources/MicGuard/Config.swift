@@ -47,6 +47,14 @@ enum Config {
         setFilePermissions(prefFile)
     }
 
+    static func formatVersion(base: String) -> String {
+        #if DEBUG
+        return "\(base) (\(BuildMetadata.gitHash) \(BuildMetadata.buildDate))"
+        #else
+        return "\(base) (\(BuildMetadata.gitHash))"
+        #endif
+    }
+
     private static func setFilePermissions(_ url: URL) {
         try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600], ofItemAtPath: url.path(percentEncoded: false))

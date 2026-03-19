@@ -6,11 +6,7 @@ private let sponsorURL = URL(string: "https://github.com/sponsors/pszypowicz")!
 struct AboutView: View {
     private let version: String = {
         let base = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-        #if DEBUG
-        return "\(base) (\(BuildMetadata.gitHash) \(BuildMetadata.buildDate))"
-        #else
-        return "\(base) (\(BuildMetadata.gitHash))"
-        #endif
+        return Config.formatVersion(base: base)
     }()
 
     var body: some View {
