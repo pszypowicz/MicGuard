@@ -84,8 +84,9 @@ enum AudioDevices {
         guard AudioObjectGetPropertyDataSize(id, &address, 0, nil, &size) == noErr,
               size > 0 else { return false }
 
-        let bufferListPtr = UnsafeMutablePointer<AudioBufferList>.allocate(capacity: 1)
-        defer { bufferListPtr.deallocate() }
+        let rawPtr = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { rawPtr.deallocate() }
+        let bufferListPtr = rawPtr.bindMemory(to: AudioBufferList.self, capacity: 1)
         guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, bufferListPtr) == noErr
         else { return false }
 

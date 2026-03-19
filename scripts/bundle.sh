@@ -17,7 +17,7 @@ cp Sources/MicGuard/Info.plist "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Info.plist"
 cp Resources/MicGuard.icns "$APP/Resources/MicGuard.icns"
 
-codesign --sign - --force .build/MicGuard.app
+codesign --sign - --force --options runtime .build/MicGuard.app
 
 # Create bin/mic-guard symlink for CLI usage (included in zip for cask binary stanza)
 mkdir -p .build/bin

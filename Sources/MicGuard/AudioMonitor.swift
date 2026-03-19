@@ -10,18 +10,14 @@ final class AudioMonitor {
     var isEnabled: Bool = true {
         didSet {
             if !suppressEnabledSideEffects {
-                writeEnabled(isEnabled)
+                Config.writeEnabled(isEnabled)
             }
             postStatusChanged()
         }
     }
     var preferredDevice: String = ""
     var currentDevice: String = ""
-
-    private let configDir = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/mic-guard")
-    private let prefFile: URL
-    private let enabledFile: URL
+    var inputDevices: [(id: AudioDeviceID, name: String)] = []
 
     static let statusChangedNotification = NSNotification.Name("com.micguard.statusChanged")
     static let requestStatusNotification = NSNotification.Name("com.micguard.requestStatus")
@@ -29,14 +25,11 @@ final class AudioMonitor {
     private var configWatcherSource: DispatchSourceFileSystemObject?
     private var suppressEnabledSideEffects = false
 
-    private init() {
-        prefFile = configDir.appendingPathComponent("preferred-mic")
-        enabledFile = configDir.appendingPathComponent("enabled")
-    }
+    private init() {}
 
     func start() {
         suppressEnabledSideEffects = true
-        isEnabled = readEnabled()
+        isEnabled = Config.readEnabled()
         suppressEnabledSideEffects = false
         preferredDevice = readPreference()
         currentDevice = AudioDevices.currentInputDevice()?.name ?? ""
@@ -74,13 +67,30 @@ final class AudioMonitor {
             log("Watching default input device changes")
         }
 
+        // Watch device list changes (registered once, lives for app lifetime)
+        var devicesAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &devicesAddress,
+            DispatchQueue.main
+        ) { [weak self] _, _ in
+            Task { @MainActor in
+                self?.inputDevices = AudioDevices.listInputDevices()
+            }
+        }
+
         // Enforce preferred device on launch (also broadcasts statusChanged)
+        inputDevices = AudioDevices.listInputDevices()
         enforce()
     }
 
     private func startConfigWatcher() {
-        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        let fd = open(configDir.path, O_EVTONLY)
+        Config.ensureConfigDir()
+        let fd = open(Config.configDir.path(percentEncoded: false), O_EVTONLY)
         guard fd >= 0 else {
             log("Failed to open config directory for watching")
             return
@@ -105,7 +115,7 @@ final class AudioMonitor {
     }
 
     private func handleConfigChange() {
-        let newEnabled = readEnabled()
+        let newEnabled = Config.readEnabled()
         if isEnabled != newEnabled {
             suppressEnabledSideEffects = true
             isEnabled = newEnabled
@@ -113,7 +123,7 @@ final class AudioMonitor {
             log("Config watcher: enabled changed to \(newEnabled)")
         }
 
-        let newPreferred = readPreference()
+        let newPreferred = Config.readPreferredDevice()
         if preferredDevice != newPreferred {
             preferredDevice = newPreferred
             log("Config watcher: preferred device changed to '\(newPreferred)'")
@@ -121,27 +131,12 @@ final class AudioMonitor {
         }
     }
 
-    func readEnabled() -> Bool {
-        guard let data = try? String(contentsOf: enabledFile, encoding: .utf8) else {
-            return true // enabled by default
-        }
-        return data.trimmingCharacters(in: .whitespacesAndNewlines) != "0"
-    }
-
-    private func writeEnabled(_ value: Bool) {
-        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        try? (value ? "1" : "0").write(to: enabledFile, atomically: true, encoding: .utf8)
-    }
-
     func readPreference() -> String {
-        if let data = try? String(contentsOf: prefFile, encoding: .utf8) {
-            let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
+        let stored = Config.readPreferredDevice()
+        if !stored.isEmpty { return stored }
         // No preference — use current device
         if let current = AudioDevices.currentInputDevice() {
-            try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-            try? current.name.write(to: prefFile, atomically: true, encoding: .utf8)
+            Config.writePreferredDevice(current.name)
             log("Initialized preference: \(current.name)")
             return current.name
         }
@@ -149,8 +144,7 @@ final class AudioMonitor {
     }
 
     func setPreferredDevice(name: String) {
-        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-        try? name.write(to: prefFile, atomically: true, encoding: .utf8)
+        Config.writePreferredDevice(name)
         preferredDevice = name
         if AudioDevices.setInputDevice(name: name) {
             currentDevice = name
@@ -191,7 +185,12 @@ final class AudioMonitor {
     }
 }
 
+nonisolated(unsafe) private let logDateFormatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    return formatter
+}()
+
 func log(_ msg: String) {
-    let ts = ISO8601DateFormatter().string(from: Date())
+    let ts = logDateFormatter.string(from: Date())
     FileHandle.standardError.write(Data("[\(ts)] \(msg)\n".utf8))
 }

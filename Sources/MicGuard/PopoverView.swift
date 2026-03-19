@@ -3,7 +3,6 @@ import SwiftUI
 
 struct PopoverView: View {
     private var monitor = AudioMonitor.shared
-    @State private var devices: [(id: UInt32, name: String)] = []
     @State private var isUpdatingLogin = false
     @State private var isLoginEnabled = SMAppService.mainApp.status == .enabled
 
@@ -16,16 +15,16 @@ struct PopoverView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 2)
 
-            ForEach(devices, id: \.id) { device in
+            ForEach(monitor.inputDevices, id: \.id) { device in
                 let isSelected = device.name == monitor.preferredDevice
                 Button {
                     monitor.setPreferredDevice(name: device.name)
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: isSelected ? "record.circle" : "circle")
-                            .font(.system(size: 11))
-                            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .semibold))
                             .frame(width: 14)
+                            .opacity(isSelected ? 1 : 0)
                         Text(device.name)
                             .font(.system(size: 13))
                         Spacer()
@@ -35,6 +34,8 @@ struct PopoverView: View {
                     .padding(.vertical, 4)
                 }
                 .buttonStyle(MenuRowButtonStyle())
+                .accessibilityLabel("Select \(device.name) as preferred microphone")
+                .accessibilityValue(isSelected ? "Selected" : "Not selected")
             }
 
             Divider().padding(.vertical, 2)
@@ -44,25 +45,27 @@ struct PopoverView: View {
                 monitor.isEnabled.toggle()
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "")
-                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
                         .frame(width: 14)
                     Text("Monitoring")
                         .font(.system(size: 13))
                     Spacer()
-                    Toggle("", isOn: Binding(
+                    Toggle("Monitoring", isOn: Binding(
                         get: { monitor.isEnabled },
-                        set: { monitor.isEnabled = $0 }
+                        set: { _ in }
                     ))
                     .toggleStyle(.switch)
                     .controlSize(.mini)
                     .labelsHidden()
+                    .allowsHitTesting(false)
                 }
                 .contentShape(Rectangle())
                 .padding(.horizontal, 12)
                 .padding(.vertical, 4)
             }
             .buttonStyle(MenuRowButtonStyle())
+            .accessibilityLabel("Monitoring")
+            .accessibilityValue(monitor.isEnabled ? "Enabled" : "Disabled")
 
             Divider().padding(.vertical, 2)
 
@@ -83,13 +86,12 @@ struct PopoverView: View {
                 isLoginEnabled = SMAppService.mainApp.status == .enabled
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "")
-                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
                         .frame(width: 14)
                     Text("Launch at Login")
                         .font(.system(size: 13))
                     Spacer()
-                    Toggle("", isOn: Binding(
+                    Toggle("Launch at Login", isOn: Binding(
                         get: { isLoginEnabled },
                         set: { _ in }
                     ))
@@ -103,6 +105,8 @@ struct PopoverView: View {
                 .padding(.vertical, 4)
             }
             .buttonStyle(MenuRowButtonStyle())
+            .accessibilityLabel("Launch at Login")
+            .accessibilityValue(isLoginEnabled ? "Enabled" : "Disabled")
 
             Divider().padding(.vertical, 2)
 
@@ -124,11 +128,11 @@ struct PopoverView: View {
             MenuRow(title: "Quit MicGuard", shortcut: "⌘Q", icon: "xmark.circle") {
                 NSApplication.shared.terminate(nil)
             }
+            .keyboardShortcut("q")
         }
         .padding(.vertical, 6)
         .frame(width: 250)
         .onAppear {
-            devices = AudioDevices.listInputDevices()
             isLoginEnabled = SMAppService.mainApp.status == .enabled
         }
     }
@@ -137,7 +141,6 @@ struct PopoverView: View {
 private struct MenuRow: View {
     let title: String
     var shortcut: String? = nil
-    var checkmark: Bool = false
     var icon: String? = nil
     let action: () -> Void
 
@@ -152,8 +155,7 @@ private struct MenuRow: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 14)
                 } else {
-                    Image(systemName: checkmark ? "checkmark" : "")
-                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
                         .frame(width: 14)
                 }
                 Text(title)
@@ -170,16 +172,24 @@ private struct MenuRow: View {
             .padding(.vertical, 4)
         }
         .buttonStyle(MenuRowButtonStyle())
+        .accessibilityLabel(title)
     }
 }
 
 private struct MenuRowButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(configuration.isPressed ? Color.accentColor.opacity(0.8) : Color.clear)
+                    .fill(configuration.isPressed
+                          ? Color.accentColor.opacity(0.8)
+                          : isHovered ? Color.primary.opacity(0.1) : Color.clear)
                     .padding(.horizontal, 4)
             )
+            .onHover { hovering in
+                isHovered = hovering
+            }
     }
 }
