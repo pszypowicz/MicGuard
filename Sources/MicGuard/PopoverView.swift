@@ -129,6 +129,7 @@ struct PopoverView: View {
         .frame(width: 250)
         .onAppear {
             devices = AudioDevices.listInputDevices()
+            isLoginEnabled = SMAppService.mainApp.status == .enabled
         }
     }
 }

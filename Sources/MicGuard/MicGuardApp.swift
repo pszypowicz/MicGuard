@@ -38,16 +38,6 @@ struct MicGuardApp: App {
         log("MicGuard starting")
         installSignalHandlers()
 
-        let service = SMAppService.mainApp
-        if service.status != .enabled {
-            do {
-                try service.register()
-                log("Registered as login item")
-            } catch {
-                log("Failed to register as login item: \(error)")
-            }
-        }
-
         AudioMonitor.shared.start()
     }
 
