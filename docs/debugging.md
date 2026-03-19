@@ -94,3 +94,31 @@ If you use fish shell, `log` is a built-in command. Use the full path instead:
 /usr/bin/log stream --predicate 'subsystem == "com.pszypowicz.MicGuard"' --level debug
 /usr/bin/log show --predicate 'subsystem == "com.pszypowicz.MicGuard"' --last 1h --info --debug
 ```
+
+## Common issues
+
+### Preferred mic not found
+
+If MicGuard cannot find the preferred device (e.g. it was disconnected), it will keep monitoring but won't enforce a switch. When the preferred device reconnects, MicGuard will automatically switch back to it. You can change the preferred device via the menubar menu or `mic-guard set`.
+
+### Login item not starting
+
+MicGuard registers as a login item via `SMAppService`. If it's not starting at login:
+
+1. Check **System Settings → General → Login Items** — ensure MicGuard is listed and enabled
+2. Try removing and re-adding: toggle it off in System Settings, then relaunch MicGuard
+3. If MicGuard doesn't appear in the list, launch it manually once — it registers itself on first run
+
+### Reset configuration
+
+To reset all MicGuard configuration to defaults:
+
+```bash
+rm -rf ~/.config/mic-guard
+```
+
+Then relaunch MicGuard. It will re-create the config directory and initialize with the current input device as the preferred mic.
+
+### Lock file
+
+MicGuard uses a lock file (`~/.config/mic-guard/lock`) to enforce single-instance. If MicGuard exits abnormally, the lock file is automatically cleaned up on the next launch — no manual removal is needed.

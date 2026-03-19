@@ -8,10 +8,20 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 
 > **Beta:** MicGuard is pre-1.0. Backward compatibility is not guaranteed until version 1.0.0 is reached.
 
+## Requirements
+
+- macOS 15+
+
 ## Install
 
 ```bash
 brew install pszypowicz/tap/mic-guard
+```
+
+### Build from source
+
+```bash
+make install
 ```
 
 ## How it works
@@ -21,3 +31,7 @@ MicGuard is a macOS menubar app that monitors the default input device via CoreA
 ## Documentation
 
 See the full docs at **[pszypowicz.github.io/MicGuard](https://pszypowicz.github.io/MicGuard/)** — covering [CLI reference](https://pszypowicz.github.io/MicGuard/cli.html), [debugging](https://pszypowicz.github.io/MicGuard/debugging.html), [integrations](https://pszypowicz.github.io/MicGuard/integrations.html), [notifications](https://pszypowicz.github.io/MicGuard/notifications.html), and [releasing](https://pszypowicz.github.io/MicGuard/releasing.html).
+
+## License
+
+MIT

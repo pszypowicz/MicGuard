@@ -101,6 +101,7 @@ Key points:
   - `enabled` — `"1"` or `"0"`
   - `device` — current input device name (e.g. `"MacBook Pro Microphone"`)
   - `volume` — input volume `"0"`–`"100"`
+  - `muted` — `"1"` or `"0"`
 - `mic_app_terminated` maps to `com.pszypowicz.MicGuard.appTerminated`
 - `mic_clicked` is a custom event triggered after mute/unmute or device change to refresh the display
 - `mouse.exited` / `mouse.exited.global` close the device picker popup
@@ -154,11 +155,14 @@ if [[ "$SENDER" == "mic_status_changed" && -n "$INFO" ]]; then
   ENABLED=$(echo "$INFO" | sed -n 's/.*"enabled"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
   MIC_NAME=$(echo "$INFO" | sed -n 's/.*"device"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
   MIC_VOLUME=$(echo "$INFO" | sed -n 's/.*"volume"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-  MIC_NAME=$(echo "$MIC_NAME" | awk '{print $1}')
+  MIC_MUTED=$(echo "$INFO" | sed -n 's/.*"muted"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  if [[ ${#MIC_NAME} -gt 12 ]]; then
+    MIC_NAME="${MIC_NAME:0:11}…"
+  fi
 
   if [[ "$ENABLED" == "0" ]]; then
     update_bar "$SHIELD_OFF" $YELLOW "$MIC_ON" $YELLOW "$MIC_NAME" $YELLOW
-  elif [[ "${MIC_VOLUME:-0}" -eq 0 ]]; then
+  elif [[ "$MIC_MUTED" == "1" ]]; then
     update_bar "$SHIELD_CHECK" $WHITE "$MIC_OFF" $RED "$MIC_NAME" $RED
   else
     update_bar "$SHIELD_CHECK" $WHITE "$MIC_ON" $WHITE "$MIC_NAME" $WHITE
@@ -268,22 +272,8 @@ if [[ "$BUTTON" == "right" ]]; then
 
   sketchybar --set mic popup.drawing=toggle
 else
-  # Left-click: mute/unmute toggle
-  MIC_NAME=$(mic-guard current)
-  MIC_NAME=$(echo "$MIC_NAME" | awk '{print $1}')
-
-  VALIDATED_MIC_NAME=$(echo "$MIC_NAME" | iconv -f UTF-8 -t UTF-8//IGNORE)
-
-  MIC_VOLUME=$(osascript -e 'input volume of (get volume settings)')
-
-  if ! [[ "$MIC_NAME" != "$VALIDATED_MIC_NAME" || -z "$MIC_NAME" ]]; then
-    if [[ $MIC_VOLUME -lt 100 ]]; then
-      osascript -e 'set volume input volume 100'
-    elif [[ $MIC_VOLUME -gt 0 ]]; then
-      osascript -e 'set volume input volume 0'
-    fi
-  fi
-
+  # Left-click: mute/unmute toggle via native CoreAudio
+  mic-guard mute
   sketchybar --trigger mic_clicked
 fi
 ```
