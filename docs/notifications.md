@@ -12,10 +12,9 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 | Notification | Direction | Posted when |
 |---|---|---|
-| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Volume change, mute toggle, enabled toggle, app launch, ping response |
-| `com.pszypowicz.MicGuard.devicesChanged` | Outbound | Device plug/unplug, default device switch, app launch, ping response |
+| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Volume change, mute toggle, enabled toggle, device plug/unplug, default device switch, app launch, ping response |
 | `com.pszypowicz.MicGuard.appTerminated` | Outbound | The app is about to quit |
-| `com.pszypowicz.MicGuard.requestStatus` | Inbound | External consumers post this to request a full state sync (`statusChanged` + `devicesChanged`) |
+| `com.pszypowicz.MicGuard.requestStatus` | Inbound | External consumers post this to request a `statusChanged` notification |
 | `com.pszypowicz.MicGuard.toggleMute` | Inbound | Toggle mute on the current input device |
 | `com.pszypowicz.MicGuard.setVolume` | Inbound | Set input volume (expects `userInfo["volume"]` as string 0-100) |
 
@@ -25,24 +24,34 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 | Key | Type | Values |
 |-----|------|--------|
-| `enabled` | String | `"1"` (enabled) or `"0"` (disabled) |
-| `device` | String | Current input device name (e.g. `"MacBook Pro Microphone"`) |
-| `volume` | String | Input volume `"0"`–`"100"` |
-| `muted` | String | `"1"` (muted) or `"0"` (not muted) |
+| `info` | String | JSON string containing the unified payload (see below) |
 
-Volume and mute changes are debounced (100ms) before posting `statusChanged`.
+The `info` value is a JSON-serialized string with the following structure:
 
-### `devicesChanged` userInfo
+```json
+{
+  "enabled": true,
+  "devices": [
+    {
+      "name": "MacBook Pro Microphone",
+      "current": true,
+      "volume": 75,
+      "muted": false
+    }
+  ]
+}
+```
 
-| Key | Type | Values |
-|-----|------|--------|
-| `devices` | String | JSON array: `[{"name":"...","current":true}, ...]` |
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | Boolean | Whether MicGuard device enforcement is active |
+| `devices` | Array | All input devices, sorted alphabetically by name |
+| `devices[].name` | String | Device name |
+| `devices[].current` | Boolean | `true` if this is the active input device |
+| `devices[].volume` | Integer | Input volume 0–100 |
+| `devices[].muted` | Boolean | Native mute flag state |
 
-Each element has:
-- `name` — the device name (e.g. `"MacBook Pro Microphone"`)
-- `current` — `true` if this device is the active input device
-
-This notification fires on hardware events (device plug/unplug, default device switch) and does not include volume or mute state per device.
+Volume and mute changes are debounced (100ms) before posting.
 
 ### `setVolume` userInfo
 
@@ -71,11 +80,19 @@ center.addObserver(
     queue: .main
 ) { notification in
     let info = notification.userInfo as? [String: String] ?? [:]
-    let enabled = info["enabled"] == "1"
-    let device = info["device"] ?? ""
-    let volume = info["volume"] ?? "0"
-    let muted = info["muted"] == "1"
-    print("MicGuard: enabled=\(enabled) device=\(device) volume=\(volume) muted=\(muted)")
+    guard let jsonString = info["info"],
+          let data = jsonString.data(using: .utf8),
+          let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+    let enabled = payload["enabled"] as? Bool ?? false
+    let devices = payload["devices"] as? [[String: Any]] ?? []
+    for device in devices {
+        let name = device["name"] as? String ?? ""
+        let current = device["current"] as? Bool ?? false
+        let volume = device["volume"] as? Int ?? 0
+        let muted = device["muted"] as? Bool ?? false
+        print("  \(current ? "▶" : " ") \(name) vol=\(volume) muted=\(muted)")
+    }
+    print("MicGuard: enabled=\(enabled) devices=\(devices.count)")
 }
 ```
 

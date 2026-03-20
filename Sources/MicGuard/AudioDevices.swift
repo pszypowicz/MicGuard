@@ -124,6 +124,27 @@ enum AudioDevices {
         return nil
     }
 
+    static func transportType(for deviceID: AudioDeviceID) -> String {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transportType: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &transportType) == noErr
+        else { return "unknown" }
+
+        switch transportType {
+        case kAudioDeviceTransportTypeBuiltIn: return "built-in"
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return "bluetooth"
+        case kAudioDeviceTransportTypeUSB: return "usb"
+        case kAudioDeviceTransportTypeVirtual: return "virtual"
+        case kAudioDeviceTransportTypeAggregate: return "aggregate"
+        default: return "unknown"
+        }
+    }
+
     private static func deviceName(_ id: AudioDeviceID) -> String? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioObjectPropertyName,
