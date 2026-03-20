@@ -98,3 +98,14 @@ mic-guard <version>
 ### `mic-guard help`
 
 Show usage information. Also accepts `--help` and `-h`.
+
+## Subcommand help
+
+Every subcommand accepts `--help` and `-h` to print its own usage and description.
+
+```bash
+$ mic-guard volume --help
+Usage: mic-guard volume <0-100>
+
+Set input volume (0-100).
+```

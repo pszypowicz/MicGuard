@@ -100,17 +100,49 @@ struct MicGuardApp: App {
         return Config.formatVersion(base: base)
     }()
 
+    private static func wantsHelp(_ args: [String]) -> Bool {
+        args.contains("--help") || args.contains("-h")
+    }
+
     private static func handleCLI(command: String, args: [String]) {
         switch command {
         case "list":
-            for device in AudioDevices.listInputDevices() {
-                print(device.name)
+            if wantsHelp(args) {
+                print("Usage: mic-guard list [--output text|json]")
+                print("\nList all input devices.")
+                return
+            }
+            let outputFormat = Self.parseOutputFlag(args: args)
+            let devices = AudioDevices.listInputDevices()
+            if outputFormat == "json" {
+                let currentDevice = AudioDevices.currentInputDevice()
+                let entries: [[String: Any]] = devices.map { device in
+                    ["name": device.name, "current": device.id == currentDevice?.id]
+                }
+                if let data = try? JSONSerialization.data(withJSONObject: entries, options: [.prettyPrinted, .sortedKeys]),
+                   let json = String(data: data, encoding: .utf8) {
+                    print(json)
+                }
+            } else {
+                for device in devices {
+                    print(device.name)
+                }
             }
         case "current":
+            if wantsHelp(args) {
+                print("Usage: mic-guard current")
+                print("\nPrint the current default input device.")
+                return
+            }
             if let device = AudioDevices.currentInputDevice() {
                 print(device.name)
             }
         case "set":
+            if wantsHelp(args) {
+                print("Usage: mic-guard set <device name>")
+                print("\nSet the default input device by name.")
+                return
+            }
             let name = args.joined(separator: " ")
             guard !name.isEmpty else {
                 fputs("Usage: mic-guard set <device name>\n", stderr)
@@ -122,15 +154,35 @@ struct MicGuardApp: App {
                 exit(1)
             }
         case "enable":
+            if wantsHelp(args) {
+                print("Usage: mic-guard enable")
+                print("\nEnable MicGuard.")
+                return
+            }
             Config.writeEnabled(true)
             print("enabled")
         case "disable":
+            if wantsHelp(args) {
+                print("Usage: mic-guard disable")
+                print("\nDisable MicGuard.")
+                return
+            }
             Config.writeEnabled(false)
             print("disabled")
         case "status":
+            if wantsHelp(args) {
+                print("Usage: mic-guard status")
+                print("\nPrint whether MicGuard is enabled or disabled.")
+                return
+            }
             let enabled = Config.readEnabled()
             print(enabled ? "enabled" : "disabled")
         case "volume":
+            if wantsHelp(args) {
+                print("Usage: mic-guard volume <0-100>")
+                print("\nSet input volume (0-100).")
+                return
+            }
             guard let volumeStr = args.first, let volume = Int(volumeStr),
                   volume >= 0, volume <= 100 else {
                 fputs("Usage: mic-guard volume <0-100>\n", stderr)
@@ -145,9 +197,19 @@ struct MicGuardApp: App {
                 exit(1)
             }
         case "mute":
+            if wantsHelp(args) {
+                print("Usage: mic-guard mute")
+                print("\nToggle mute on the current input device.")
+                return
+            }
             DistributedNotificationCenter.default().postNotificationName(
                 AudioMonitor.toggleMuteNotification, object: nil)
         case "ping":
+            if wantsHelp(args) {
+                print("Usage: mic-guard ping")
+                print("\nAsk the running daemon to re-broadcast its status.")
+                return
+            }
             DistributedNotificationCenter.default().postNotificationName(
                 AudioMonitor.requestStatusNotification, object: nil)
         case "version", "--version", "-v":
@@ -158,7 +220,7 @@ struct MicGuardApp: App {
             print("Usage: mic-guard [command]")
             print()
             print("Commands:")
-            print("  list       List all input devices")
+            print("  list [--output text|json]  List all input devices")
             print("  current    Print the current default input device")
             print("  set <name> Set the default input device by name")
             print("  volume <n> Set input volume (0-100)")
@@ -176,5 +238,17 @@ struct MicGuardApp: App {
             fputs("Run 'mic-guard help' for usage information.\n", stderr)
             exit(1)
         }
+    }
+
+    private static func parseOutputFlag(args: [String]) -> String {
+        guard let idx = args.firstIndex(of: "--output"), idx + 1 < args.count else {
+            return "text"
+        }
+        let value = args[idx + 1]
+        guard value == "text" || value == "json" else {
+            fputs("Invalid output format: \(value). Use 'text' or 'json'.\n", stderr)
+            exit(1)
+        }
+        return value
     }
 }
