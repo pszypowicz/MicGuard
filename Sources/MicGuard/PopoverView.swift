@@ -6,13 +6,28 @@ struct PopoverView: View {
     private var monitor = AudioMonitor.shared
     @State private var isLoginEnabled = SMAppService.mainApp.status == .enabled
 
+    private var displayDevices: [(name: String, available: Bool)] {
+        var devices = monitor.inputDevices.map { (name: $0.name, available: true) }
+        if !monitor.preferredDevice.isEmpty,
+           !devices.contains(where: { $0.name == monitor.preferredDevice }) {
+            devices.append((name: monitor.preferredDevice, available: false))
+        }
+        return devices.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
     var body: some View {
         Picker("Preferred Device", selection: Binding(
             get: { monitor.preferredDevice },
             set: { monitor.setPreferredDevice(name: $0) }
         )) {
-            ForEach(monitor.inputDevices, id: \.id) { device in
-                Text(device.name).tag(device.name)
+            ForEach(displayDevices, id: \.name) { device in
+                if device.available {
+                    Text(device.name).tag(device.name)
+                } else {
+                    Text("\(device.name) (offline)")
+                        .foregroundStyle(.secondary)
+                        .tag(device.name)
+                }
             }
         }
         .pickerStyle(.inline)

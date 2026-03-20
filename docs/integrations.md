@@ -77,13 +77,12 @@ mic_shield=(
 # Events
 sketchybar --add event mic_clicked
 sketchybar --add event mic_status_changed "com.pszypowicz.MicGuard.statusChanged"
-sketchybar --add event mic_devices_changed "com.pszypowicz.MicGuard.devicesChanged"
 sketchybar --add event mic_app_terminated "com.pszypowicz.MicGuard.appTerminated"
 
 # mic item (rightmost — mic icon + device name label)
 sketchybar --add item mic right \
   --set mic "${mic[@]}" \
-  --subscribe mic mic_clicked mic_status_changed mic_devices_changed mic_app_terminated mouse.exited mouse.exited.global
+  --subscribe mic mic_clicked mic_status_changed mic_app_terminated mouse.exited mouse.exited.global
 
 # mic.shield item (left of mic — shield icon only)
 sketchybar --add item mic.shield right \
@@ -94,16 +93,11 @@ sketchybar --add item mic.shield right \
 mic-guard ping 2>/dev/null &
 ```
 
-The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast both `com.pszypowicz.MicGuard.statusChanged` and `com.pszypowicz.MicGuard.devicesChanged`, so bar items and popup content populate immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
+The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast `com.pszypowicz.MicGuard.statusChanged`, so bar items and popup content populate immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
 
 Key points:
 - Two items: `mic` (mic icon + device name label) and `mic.shield` (shield icon only)
-- `mic_status_changed` maps to the `com.pszypowicz.MicGuard.statusChanged` distributed notification. The notification includes a `userInfo` payload with all state, so the plugin can skip subprocess calls on the fast path:
-  - `enabled` — `"1"` or `"0"`
-  - `device` — current input device name (e.g. `"MacBook Pro Microphone"`)
-  - `volume` — input volume `"0"`–`"100"`
-  - `muted` — `"1"` or `"0"`
-- `mic_devices_changed` maps to `com.pszypowicz.MicGuard.devicesChanged`. The plugin uses this to pre-build popup items in the background, so right-click just toggles visibility (no CLI calls, no flicker)
+- `mic_status_changed` maps to the `com.pszypowicz.MicGuard.statusChanged` distributed notification. The notification carries a unified JSON payload under `userInfo["info"]` with enabled state, device list, and per-device volume/mute — the plugin updates both bar icons and popup items from this single notification
 - `mic_app_terminated` maps to `com.pszypowicz.MicGuard.appTerminated`
 - `mic_clicked` is a custom event triggered after mute/unmute or device change to refresh the display
 - `mouse.exited` / `mouse.exited.global` close the device picker popup
