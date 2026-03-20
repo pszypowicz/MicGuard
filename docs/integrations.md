@@ -77,12 +77,13 @@ mic_shield=(
 # Events
 sketchybar --add event mic_clicked
 sketchybar --add event mic_status_changed "com.pszypowicz.MicGuard.statusChanged"
+sketchybar --add event mic_devices_changed "com.pszypowicz.MicGuard.devicesChanged"
 sketchybar --add event mic_app_terminated "com.pszypowicz.MicGuard.appTerminated"
 
 # mic item (rightmost — mic icon + device name label)
 sketchybar --add item mic right \
   --set mic "${mic[@]}" \
-  --subscribe mic mic_clicked mic_status_changed mic_app_terminated mouse.exited mouse.exited.global
+  --subscribe mic mic_clicked mic_status_changed mic_devices_changed mic_app_terminated mouse.exited mouse.exited.global
 
 # mic.shield item (left of mic — shield icon only)
 sketchybar --add item mic.shield right \
@@ -93,7 +94,7 @@ sketchybar --add item mic.shield right \
 mic-guard ping 2>/dev/null &
 ```
 
-The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast its status via `com.pszypowicz.MicGuard.statusChanged`, so both items populate immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
+The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast both `com.pszypowicz.MicGuard.statusChanged` and `com.pszypowicz.MicGuard.devicesChanged`, so bar items and popup content populate immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
 
 Key points:
 - Two items: `mic` (mic icon + device name label) and `mic.shield` (shield icon only)
@@ -102,6 +103,7 @@ Key points:
   - `device` — current input device name (e.g. `"MacBook Pro Microphone"`)
   - `volume` — input volume `"0"`–`"100"`
   - `muted` — `"1"` or `"0"`
+- `mic_devices_changed` maps to `com.pszypowicz.MicGuard.devicesChanged`. The plugin uses this to pre-build popup items in the background, so right-click just toggles visibility (no CLI calls, no flicker)
 - `mic_app_terminated` maps to `com.pszypowicz.MicGuard.appTerminated`
 - `mic_clicked` is a custom event triggered after mute/unmute or device change to refresh the display
 - `mouse.exited` / `mouse.exited.global` close the device picker popup
@@ -180,7 +182,9 @@ fi
 
 #### 3. Click handler
 
-The click script (`plugins/mic_click.sh`) handles left-click mute/unmute, right-click device picker, and enable/disable toggle:
+The click script (`plugins/mic_click.sh`) handles left-click mute/unmute and right-click popup toggle.
+
+Popup items are pre-built by the `mic_devices_changed` handler in the update script, so right-click just toggles `popup.drawing` — no CLI calls, no JSON parsing, no flicker.
 
 ```bash
 #!/usr/bin/env bash
@@ -188,90 +192,14 @@ The click script (`plugins/mic_click.sh`) handles left-click mute/unmute, right-
 export PATH="/opt/homebrew/bin:$PATH"
 source "$CONFIG_DIR/colors.sh"
 
-PREF_FILE="$HOME/.config/mic-guard/preferred-mic"
-
-# Do nothing if MicGuard.app is not running
+# Guard: do nothing if MicGuard.app is not running
 if ! pgrep -xq MicGuard; then
   exit 0
 fi
 
 if [[ "$BUTTON" == "right" ]]; then
-  # Right-click: build popup with all input devices
-  DEVICES=$(mic-guard list)
-  CURRENT=$(mic-guard current)
-
-  # Remove existing popup items from both mic and mic.shield
-  sketchybar --remove '/mic\.(device|sep|monitoring)\..*/' 2>/dev/null
-  sketchybar --remove '/mic\.shield\.(device|sep|monitoring)\..*/' 2>/dev/null
-
-  INDEX=0
-  while IFS= read -r device; do
-    [[ -z "$device" ]] && continue
-    ITEM_NAME="mic.device.$INDEX"
-
-    if [[ "$device" == "$CURRENT" ]]; then
-      ICON="󰄬"  # Nerd Font: nf-md-check (U+F0126)
-      COLOR="$WHITE"
-    else
-      ICON=" "
-      COLOR="$ORANGE"
-    fi
-
-    sketchybar --add item "$ITEM_NAME" popup.mic \
-      --set "$ITEM_NAME" \
-        label="$device" \
-        icon="$ICON" \
-        icon.width=20 \
-        icon.color="$COLOR" \
-        label.color="$COLOR" \
-        background.color=0x00000000 \
-        background.height=30 \
-        background.drawing=on \
-        click_script="mic-guard set '$device'; echo '$device' > '$PREF_FILE'; sketchybar --set mic popup.drawing=off; sketchybar --trigger mic_clicked"
-
-    INDEX=$((INDEX + 1))
-  done <<< "$DEVICES"
-
-  # Determine MicGuard toggle — label shows what clicking will do
-  ENABLED=$(cat ~/.config/mic-guard/enabled 2>/dev/null)
-  if [[ "$ENABLED" == "0" ]]; then
-    MONITOR_LABEL="Enable MicGuard"
-    MONITOR_ICON="󰕥"   # nf-md-shield_check
-    MONITOR_CMD="mic-guard enable"
-  else
-    MONITOR_LABEL="Disable MicGuard"
-    MONITOR_ICON="󰦞"   # nf-md-shield_off
-    MONITOR_CMD="mic-guard disable"
-  fi
-
-  # Separator — build dash line matching the longest popup entry
-  MAX_LEN=${#MONITOR_LABEL}
-  while IFS= read -r device; do
-    [[ ${#device} -gt $MAX_LEN ]] && MAX_LEN=${#device}
-  done <<< "$DEVICES"
-  # +3 accounts for icon + icon padding equivalent in characters
-  SEP_LINE=$(printf '—%.0s' $(seq 1 $(( (MAX_LEN + 3) * 17 / 8 ))))
-
-  sketchybar --add item mic.sep.0 popup.mic \
-    --set mic.sep.0 \
-      icon.drawing=off \
-      label="$SEP_LINE" \
-      label.font="CaskaydiaCove Nerd Font:Bold:8.0" \
-      label.color=0x44ffffff \
-      label.padding_left=4 \
-      label.padding_right=4
-
-  sketchybar --add item mic.monitoring.0 popup.mic \
-    --set mic.monitoring.0 \
-      label="$MONITOR_LABEL" \
-      icon="$MONITOR_ICON" \
-      icon.color="$YELLOW" \
-      label.color="$YELLOW" \
-      background.color=0x00000000 \
-      background.height=30 \
-      background.drawing=on \
-      click_script="$MONITOR_CMD; sketchybar --set mic popup.drawing=off; sketchybar --trigger mic_clicked"
-
+  # Right-click: toggle popup visibility
+  # Popup items are pre-built by mic_devices_changed handler
   sketchybar --set mic popup.drawing=toggle
 else
   # Left-click: mute/unmute toggle via native CoreAudio
@@ -283,6 +211,58 @@ fi
 ### Reference implementation
 
 See the full working config in the [dotfiles repo](https://github.com/pszypowicz/dotfiles/tree/main/dot-config/sketchybar).
+
+### Debugging with a development build
+
+The plugin scripts invoke `mic-guard` via `$PATH`. During development you can make SketchyBar use the Xcode build product instead of the installed `mic-guard`:
+
+**1. Stop SketchyBar**
+
+```bash
+brew services stop sketchybar
+```
+
+**2. Create a symlink for the dev binary (one-time)**
+
+Xcode builds the product as `MicGuard`, but the plugin scripts call `mic-guard`. Create a symlink so the name resolves:
+
+bash:
+
+```bash
+DEBUG_DIR=~/Library/Developer/Xcode/DerivedData/MicGuard-*/Build/Products/Debug
+ln -sf "$DEBUG_DIR"/MicGuard "$DEBUG_DIR"/mic-guard
+```
+
+fish:
+
+```fish
+set DEBUG_DIR ~/Library/Developer/Xcode/DerivedData/MicGuard-*/Build/Products/Debug
+ln -sf $DEBUG_DIR/MicGuard $DEBUG_DIR/mic-guard
+```
+
+**3. Run SketchyBar with the dev PATH**
+
+bash:
+
+```bash
+PATH="$DEBUG_DIR:$PATH" sketchybar
+```
+
+fish:
+
+```fish
+env PATH=(string join : $DEBUG_DIR $PATH) sketchybar
+```
+
+SketchyBar inherits the modified `PATH`, so all plugin scripts will invoke the development `mic-guard` binary.
+
+**4. Stop and restore**
+
+Press `Ctrl-C` in the terminal to stop SketchyBar, then restart the managed instance:
+
+```bash
+brew services start sketchybar
+```
 
 ## Building your own integration
 
