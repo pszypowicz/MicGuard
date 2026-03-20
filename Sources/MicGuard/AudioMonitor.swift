@@ -27,6 +27,7 @@ final class AudioMonitor {
     private var muteListenerBlock: AudioObjectPropertyListenerBlock?
 
     static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
+    static let devicesChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.devicesChanged")
     static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
     static let toggleMuteNotification = NSNotification.Name("com.pszypowicz.MicGuard.toggleMute")
     static let setVolumeNotification = NSNotification.Name("com.pszypowicz.MicGuard.setVolume")
@@ -55,6 +56,7 @@ final class AudioMonitor {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.postStatusChanged()
+                self?.postDevicesChanged()
             }
         }
 
@@ -115,6 +117,7 @@ final class AudioMonitor {
         ) { [weak self] _, _ in
             Task { @MainActor in
                 self?.inputDevices = AudioDevices.listInputDevices()
+                self?.postDevicesChanged()
             }
         }
 
@@ -217,7 +220,7 @@ final class AudioMonitor {
         let volumeHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
                 guard let self else { return }
-                if let vol = AudioDevices.inputVolume(for: deviceID) {
+                if let vol = AudioDevices.inputVolume(for: deviceID), vol != self.inputVolume {
                     logger.debug("Volume changed to \(vol, privacy: .public)%")
                     self.inputVolume = vol
                     self.debouncedPostStatusChanged()
@@ -250,9 +253,9 @@ final class AudioMonitor {
             let muteHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 Task { @MainActor in
                     guard let self else { return }
-                    if let vol = AudioDevices.inputVolume(for: deviceID) {
-                        self.inputVolume = vol
-                    }
+                    let vol = AudioDevices.inputVolume(for: deviceID) ?? self.inputVolume
+                    guard vol != self.inputVolume else { return }
+                    self.inputVolume = vol
                     logger.debug("Mute changed, volume now \(self.inputVolume, privacy: .public)%")
                     self.debouncedPostStatusChanged()
                 }
@@ -324,6 +327,7 @@ final class AudioMonitor {
         }
 
         postStatusChanged()
+        postDevicesChanged()
     }
 
     private func debouncedPostStatusChanged() {
@@ -376,6 +380,8 @@ final class AudioMonitor {
     }
 
     func postStatusChanged() {
+        statusDebounceWork?.cancel()
+
         // Muted = volume at zero (native mute flag alone doesn't silence all devices)
         let isMuted = inputVolume == 0
         let info: [String: String] = [
@@ -387,6 +393,28 @@ final class AudioMonitor {
         logger.debug("Posting status notification: enabled=\(self.isEnabled ? "1" : "0", privacy: .public) device=\(self.currentDevice, privacy: .public) volume=\(self.inputVolume, privacy: .public) muted=\(isMuted ? "1" : "0", privacy: .public)")
         DistributedNotificationCenter.default().postNotificationName(
             Self.statusChangedNotification,
+            object: nil,
+            userInfo: info,
+            deliverImmediately: true
+        )
+    }
+
+    func postDevicesChanged() {
+        let devices = inputDevices.map { device -> [String: Any] in
+            [
+                "name": device.name,
+                "current": device.name == currentDevice,
+            ]
+        }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: devices),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            logger.error("Failed to serialize devices list to JSON")
+            return
+        }
+        let info: [String: String] = ["devices": jsonString]
+        logger.debug("Posting devicesChanged notification: \(jsonString, privacy: .public)")
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.devicesChangedNotification,
             object: nil,
             userInfo: info,
             deliverImmediately: true

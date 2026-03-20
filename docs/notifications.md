@@ -12,9 +12,10 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 | Notification | Direction | Posted when |
 |---|---|---|
-| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Device change, enabled toggle, app launch, ping response |
+| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Volume change, mute toggle, enabled toggle, app launch, ping response |
+| `com.pszypowicz.MicGuard.devicesChanged` | Outbound | Device plug/unplug, default device switch, app launch, ping response |
 | `com.pszypowicz.MicGuard.appTerminated` | Outbound | The app is about to quit |
-| `com.pszypowicz.MicGuard.requestStatus` | Inbound | External consumers post this to request a status re-broadcast |
+| `com.pszypowicz.MicGuard.requestStatus` | Inbound | External consumers post this to request a full state sync (`statusChanged` + `devicesChanged`) |
 | `com.pszypowicz.MicGuard.toggleMute` | Inbound | Toggle mute on the current input device |
 | `com.pszypowicz.MicGuard.setVolume` | Inbound | Set input volume (expects `userInfo["volume"]` as string 0-100) |
 
@@ -30,6 +31,18 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 | `muted` | String | `"1"` (muted) or `"0"` (not muted) |
 
 Volume and mute changes are debounced (100ms) before posting `statusChanged`.
+
+### `devicesChanged` userInfo
+
+| Key | Type | Values |
+|-----|------|--------|
+| `devices` | String | JSON array: `[{"name":"...","current":true}, ...]` |
+
+Each element has:
+- `name` — the device name (e.g. `"MacBook Pro Microphone"`)
+- `current` — `true` if this device is the active input device
+
+This notification fires on hardware events (device plug/unplug, default device switch) and does not include volume or mute state per device.
 
 ### `setVolume` userInfo
 
