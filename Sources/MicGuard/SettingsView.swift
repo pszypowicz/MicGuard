@@ -11,6 +11,7 @@ private struct DisplayDevice: Equatable, Identifiable {
 struct SettingsView: View {
     private var monitor = AudioMonitor.shared
     @State private var isLoginEnabled = SMAppService.mainApp.status == .enabled
+    @State private var showAdvanced = false
 
     var body: some View {
         Form {
@@ -45,6 +46,24 @@ struct SettingsView: View {
                     get: { isLoginEnabled },
                     set: { toggleLoginItem($0) }
                 ))
+            }
+
+            DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Settle period")
+                        Slider(value: Binding(
+                            get: { monitor.settleSeconds },
+                            set: { monitor.setSettleSeconds($0) }
+                        ), in: 1...10, step: 1)
+                        Text("\(Int(monitor.settleSeconds))s")
+                            .monospacedDigit()
+                            .frame(width: 24, alignment: .trailing)
+                    }
+                    Text("After a device connects or disconnects, MicGuard protects your preferred microphone for this period while macOS stabilizes. Switch your input device in System Settings after devices settle.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

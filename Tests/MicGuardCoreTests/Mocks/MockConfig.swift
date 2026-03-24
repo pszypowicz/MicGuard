@@ -1,3 +1,4 @@
+import Foundation
 @testable import MicGuardCore
 
 @MainActor
@@ -16,5 +17,8 @@ final class MockConfig: ConfigProviding {
     }
     func readMode() -> String { mode }
     func writeMode(_ value: String) { mode = value }
+    var settleSeconds: TimeInterval = 5.0
+    func readSettleSeconds() -> TimeInterval { settleSeconds }
+    func writeSettleSeconds(_ seconds: TimeInterval) { settleSeconds = seconds }
     func ensureConfigDir() {}
 }

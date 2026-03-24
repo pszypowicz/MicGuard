@@ -36,9 +36,8 @@ public final class AudioMonitor {
     private var muteListenerBlock: AudioObjectPropertyListenerBlock?
 
     var previousDeviceIDs: Set<AudioDeviceID> = []
-    var revertedFromDeviceID: AudioDeviceID?
-    var revertTimestamp: CFAbsoluteTime = 0
-    var recentDeviceActivity: [AudioDeviceID: CFAbsoluteTime] = [:]
+    var lastDeviceListChange: CFAbsoluteTime = 0
+    public var settleSeconds: TimeInterval = 5.0
 
     public static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
     public static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
@@ -70,6 +69,7 @@ public final class AudioMonitor {
         mode = config.readMode()
         suppressConfigSideEffects = false
         preferredDevice = readPreference()
+        settleSeconds = config.readSettleSeconds()
         currentDevice = audio.currentInputDevice()?.name ?? ""
 
         startConfigWatcher()
@@ -259,6 +259,11 @@ public final class AudioMonitor {
         mode = newMode
     }
 
+    public func setSettleSeconds(_ seconds: TimeInterval) {
+        settleSeconds = seconds
+        config.writeSettleSeconds(seconds)
+    }
+
     // MARK: - Device Change Detection
 
     func handleDeviceListChanged() {
@@ -268,18 +273,13 @@ public final class AudioMonitor {
             .compactMap { id in newDevices.first { $0.id == id }?.name }
         let removedIDs = previousDeviceIDs.subtracting(newIDs)
 
-        let addedIDs = newIDs.subtracting(previousDeviceIDs)
-
         if !addedNames.isEmpty || !removedIDs.isEmpty {
             logger.debug("DEVICE_LIST_CHANGED: added=\(addedNames, privacy: .public) removed=\(removedIDs.sorted().map { String($0) }, privacy: .public)")
         } else {
             logger.debug("DEVICE_LIST_CHANGED: no additions or removals")
         }
 
-        // Track connection activity per device (used to detect BT instability)
-        let now = CFAbsoluteTimeGetCurrent()
-        for id in addedIDs { recentDeviceActivity[id] = now }
-        for id in removedIDs { recentDeviceActivity[id] = now }
+        lastDeviceListChange = CFAbsoluteTimeGetCurrent()
 
         // Only remove departed devices — new devices are acknowledged
         // in handleDefaultInputChanged after the policy decision.
@@ -294,7 +294,6 @@ public final class AudioMonitor {
             settleOnDevice(device)
         }
 
-        // Always repost status — the device list is part of the payload
         debouncedPostStatusChanged()
 
         DistributedNotificationCenter.default().postNotificationName(
@@ -330,41 +329,18 @@ public final class AudioMonitor {
             return
         }
 
-        // After our own revert, suppress stale callbacks from the reverted device
-        if let revertedID = revertedFromDeviceID, newDefault.id == revertedID {
-            let elapsed = CFAbsoluteTimeGetCurrent() - revertTimestamp
-            if elapsed >= 1.0 {
-                // Suppression expired — clear and let normal logic decide
-                logger.debug("Revert suppression expired (\(String(format: "%.1f", elapsed), privacy: .public)s) for device [\(revertedID, privacy: .public)]")
-                revertedFromDeviceID = nil
-            } else {
-                let preferred = readPreference()
-                if newDefault.name != preferred && !preferred.isEmpty
-                    && inputDevices.contains(where: { $0.name == preferred }) {
-                    logger.debug("Stale callback from reverted device [\(revertedID, privacy: .public)] (\(String(format: "%.0f", elapsed * 1000), privacy: .public)ms after revert) — re-enforcing '\(preferred, privacy: .public)'")
-                    if audio.setInputDevice(name: preferred) {
-                        currentDevice = preferred
-                        return
-                    }
-                }
-                previousDeviceIDs.insert(newDefault.id)
-                settleOnDevice(newDefault)
-                return
-            }
-        }
-
         // Core decision: is this device new (just connected) or known (already present)?
         let isNew = !previousDeviceIDs.contains(newDefault.id)
         previousDeviceIDs.insert(newDefault.id)
-
-        // If new, sync device list (may have arrived before DEVICE_LIST_CHANGED)
         if isNew {
             inputDevices = audio.listInputDevices()
             previousDeviceIDs = Set(inputDevices.map(\.id))
         }
 
+        let isSettled = CFAbsoluteTimeGetCurrent() - lastDeviceListChange >= settleSeconds
+
         if isNew {
-            // Device connection — macOS auto-switched to a new device
+            // New device appeared and became default
             let preferred = readPreference()
             if preferred == newDefault.name || preferred.isEmpty {
                 logger.debug("Preferred device '\(newDefault.name, privacy: .public)' reconnected")
@@ -373,29 +349,15 @@ public final class AudioMonitor {
                 logger.info("New device '\(newDefault.name, privacy: .public)' took default from preferred '\(preferred, privacy: .public)' — reverting")
                 revertHijack()
             }
+        } else if isSettled {
+            // Known device, devices settled — user switch via System Settings
+            logger.info("User-initiated switch to '\(newDefault.name, privacy: .public)' — saving as preferred")
+            preferredDevice = newDefault.name
+            config.writePreferredDevice(newDefault.name)
+            settleOnDevice(newDefault)
         } else {
-            // Known device — check if either device had recent connection instability
-            let now = CFAbsoluteTimeGetCurrent()
-            let oldDeviceID = inputDevices.first(where: { $0.name == oldDevice })?.id
-            let oldDeviceHadRecentActivity: Bool = {
-                guard let id = oldDeviceID,
-                      let t = recentDeviceActivity[id] else { return false }
-                return now - t < 3.0
-            }()
-            let newDeviceHadRecentActivity: Bool = {
-                guard let t = recentDeviceActivity[newDefault.id] else { return false }
-                return now - t < 3.0
-            }()
-
-            if oldDeviceHadRecentActivity || newDeviceHadRecentActivity {
-                let which = oldDeviceHadRecentActivity ? oldDevice : newDefault.name
-                logger.info("BT instability: '\(which, privacy: .public)' had recent connection activity — not saving '\(newDefault.name, privacy: .public)' as preferred")
-            } else {
-                // No recent activity on old device — genuine user switch
-                logger.info("User-initiated switch to '\(newDefault.name, privacy: .public)' — saving as preferred")
-                preferredDevice = newDefault.name
-                config.writePreferredDevice(newDefault.name)
-            }
+            // Known device, within settle period — accept without saving preferred
+            logger.info("Devices settling — accepted '\(newDefault.name, privacy: .public)' (preferred stays '\(self.preferredDevice, privacy: .public)')")
             settleOnDevice(newDefault)
         }
     }
@@ -447,29 +409,18 @@ public final class AudioMonitor {
     func revertHijack() {
         let preferred = readPreference()
         guard !preferred.isEmpty,
-              inputDevices.contains(where: { $0.name == preferred }) else {
+              inputDevices.contains(where: { $0.name == preferred }),
+              audio.setInputDevice(name: preferred) else {
             if let device = audio.currentInputDevice() {
                 logger.info("Preferred device '\(preferred, privacy: .public)' not connected — staying on '\(device.name, privacy: .public)'")
                 settleOnDevice(device)
             }
             return
         }
-        // Track which device we're reverting from so stale callbacks are suppressed
-        revertedFromDeviceID = audio.currentInputDevice()?.id
-        revertTimestamp = CFAbsoluteTimeGetCurrent()
-
-        logger.info("Reverting to preferred '\(preferred, privacy: .public)' (suppressing device [\(self.revertedFromDeviceID.map { String($0) } ?? "nil", privacy: .public)] for 1s)")
-        if audio.setInputDevice(name: preferred) {
-            currentDevice = preferred
-            if let prefDevice = inputDevices.first(where: { $0.name == preferred }) {
-                settleOnDevice((id: prefDevice.id, name: prefDevice.name))
-            }
-        } else {
-            logger.error("Failed to revert to preferred device '\(preferred, privacy: .public)'")
-            revertedFromDeviceID = nil
-            if let device = audio.currentInputDevice() {
-                settleOnDevice(device)
-            }
+        logger.info("Reverting to preferred '\(preferred, privacy: .public)'")
+        currentDevice = preferred
+        if let d = inputDevices.first(where: { $0.name == preferred }) {
+            settleOnDevice((id: d.id, name: d.name))
         }
     }
 
