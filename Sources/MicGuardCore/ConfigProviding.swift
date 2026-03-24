@@ -1,3 +1,5 @@
+import Foundation
+
 @MainActor
 public protocol ConfigProviding {
     func readEnabled() -> Bool
@@ -6,5 +8,7 @@ public protocol ConfigProviding {
     func writePreferredDevice(_ name: String)
     func readMode() -> String
     func writeMode(_ value: String)
+    func readSettleSeconds() -> TimeInterval
+    func writeSettleSeconds(_ seconds: TimeInterval)
     func ensureConfigDir()
 }

@@ -7,6 +7,7 @@ public enum Config {
     public static let prefFile = configDir.appending(component: "preferred-mic")
     public static let enabledFile = configDir.appending(component: "enabled")
     public static let modeFile = configDir.appending(component: "mode")
+    public static let settleFile = configDir.appending(component: "settle-seconds")
 
     public static func ensureConfigDir() {
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true,
@@ -64,6 +65,27 @@ public enum Config {
             logger.error("Failed to write mode: \(error, privacy: .public)")
         }
         setFilePermissions(modeFile)
+    }
+
+    public static let defaultSettleSeconds: TimeInterval = 5.0
+
+    public static func readSettleSeconds() -> TimeInterval {
+        guard let data = try? String(contentsOf: settleFile, encoding: .utf8),
+              let value = TimeInterval(data.trimmingCharacters(in: .whitespacesAndNewlines)),
+              value >= 1, value <= 30 else {
+            return defaultSettleSeconds
+        }
+        return value
+    }
+
+    public static func writeSettleSeconds(_ seconds: TimeInterval) {
+        ensureConfigDir()
+        do {
+            try String(Int(seconds)).write(to: settleFile, atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("Failed to write settle seconds: \(error, privacy: .public)")
+        }
+        setFilePermissions(settleFile)
     }
 
     private static func setFilePermissions(_ url: URL) {

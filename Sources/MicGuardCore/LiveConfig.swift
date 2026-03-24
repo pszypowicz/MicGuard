@@ -1,3 +1,5 @@
+import Foundation
+
 public struct LiveConfig: ConfigProviding {
     public init() {}
 
@@ -7,5 +9,7 @@ public struct LiveConfig: ConfigProviding {
     public func writePreferredDevice(_ name: String) { Config.writePreferredDevice(name) }
     public func readMode() -> String { Config.readMode() }
     public func writeMode(_ value: String) { Config.writeMode(value) }
+    public func readSettleSeconds() -> TimeInterval { Config.readSettleSeconds() }
+    public func writeSettleSeconds(_ seconds: TimeInterval) { Config.writeSettleSeconds(seconds) }
     public func ensureConfigDir() { Config.ensureConfigDir() }
 }
