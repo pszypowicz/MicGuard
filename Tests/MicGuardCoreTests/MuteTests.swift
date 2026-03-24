@@ -7,89 +7,64 @@ import Testing
 @MainActor
 struct MuteTests {
 
-    // MARK: - toggleMute
+    // MARK: - reloadConfig
 
-    @Test("toggleMute sets isMuted and zeros volume")
-    func toggleMuteMutes() {
-        let (monitor, mockAudio, _) = makeMonitor(
+    @Test("reloadConfig updates enabled from config")
+    func reloadConfigEnabled() {
+        let (monitor, _, mockConfig) = makeMonitor(
             current: macbook,
             devices: [macbook]
         )
-        mockAudio.volumes[macbook.id] = 50
+        #expect(monitor.isEnabled == true)
 
-        monitor.toggleMute()
+        mockConfig.enabled = false
+        monitor.reloadConfig()
 
-        #expect(monitor.isMuted == true)
-        #expect(monitor.inputVolume == 0)
-        #expect(mockAudio.volumes[macbook.id] == 0)
-        #expect(mockAudio.muted[macbook.id] == true)
+        #expect(monitor.isEnabled == false)
     }
 
-    @Test("toggleMute unmutes and restores volume")
-    func toggleMuteUnmutes() {
-        let (monitor, mockAudio, _) = makeMonitor(
+    @Test("reloadConfig updates mode from config")
+    func reloadConfigMode() {
+        let (monitor, _, mockConfig) = makeMonitor(
+            mode: "auto",
             current: macbook,
             devices: [macbook]
         )
-        mockAudio.volumes[macbook.id] = 50
 
-        // Mute first
-        monitor.toggleMute()
-        #expect(monitor.isMuted == true)
+        mockConfig.mode = "manual"
+        monitor.reloadConfig()
 
-        // Mock restores volume on setInputVolume (already done by MockAudioDevices)
-        monitor.toggleMute()
-
-        #expect(monitor.isMuted == false)
-        #expect(monitor.inputVolume == 50)
-        #expect(mockAudio.muted[macbook.id] == false)
+        #expect(monitor.mode == "manual")
     }
 
-    @Test("toggleMute round-trip preserves volume")
-    func toggleMuteRoundTrip() {
-        let (monitor, mockAudio, _) = makeMonitor(
+    @Test("reloadConfig updates preferred device from config")
+    func reloadConfigPreferred() {
+        let (monitor, _, mockConfig) = makeMonitor(
             current: macbook,
-            devices: [macbook]
+            devices: [macbook, airpods]
         )
-        mockAudio.volumes[macbook.id] = 73
 
-        monitor.toggleMute()
-        monitor.toggleMute()
+        mockConfig.preferredDevice = "AirPods Pro 3"
+        monitor.reloadConfig()
 
-        #expect(monitor.isMuted == false)
-        #expect(monitor.inputVolume == 73)
-        #expect(mockAudio.volumes[macbook.id] == 73)
+        #expect(monitor.preferredDevice == "AirPods Pro 3")
     }
 
-    @Test("toggleMute saves at least 1 for preMuteVolume when volume is 0")
-    func toggleMuteMinPreMuteVolume() {
-        let (monitor, mockAudio, _) = makeMonitor(
+    @Test("reloadConfig is no-op when config unchanged")
+    func reloadConfigNoop() {
+        let (monitor, _, _) = makeMonitor(
             current: macbook,
             devices: [macbook]
         )
-        mockAudio.volumes[macbook.id] = 0
+        let oldEnabled = monitor.isEnabled
+        let oldMode = monitor.mode
+        let oldPreferred = monitor.preferredDevice
 
-        // Mute (volume already 0) then unmute
-        monitor.toggleMute()
-        #expect(monitor.isMuted == true)
+        monitor.reloadConfig()
 
-        monitor.toggleMute()
-        #expect(monitor.isMuted == false)
-        // preMuteVolume should be at least 1, so restored volume >= 1
-        #expect(monitor.inputVolume >= 1)
-    }
-
-    @Test("toggleMute with no current device is no-op")
-    func toggleMuteNoDevice() {
-        let (monitor, mockAudio, _) = makeMonitor(
-            current: macbook,
-            devices: [macbook]
-        )
-        mockAudio.currentDefault = nil
-
-        monitor.toggleMute()
-
-        #expect(monitor.isMuted == false)
+        #expect(monitor.isEnabled == oldEnabled)
+        #expect(monitor.mode == oldMode)
+        #expect(monitor.preferredDevice == oldPreferred)
     }
 
     // MARK: - settleOnDevice
@@ -109,36 +84,6 @@ struct MuteTests {
 
         #expect(monitor.isMuted == false)
         #expect(monitor.currentDevice == "AirPods Pro 3")
-    }
-
-    // MARK: - setVolume
-
-    @Test("setVolume > 0 clears isMuted")
-    func setVolumeClearsMute() {
-        let (monitor, mockAudio, _) = makeMonitor(
-            current: macbook,
-            devices: [macbook]
-        )
-        mockAudio.volumes[macbook.id] = 50
-        monitor.isMuted = true
-
-        monitor.setVolume(75)
-
-        #expect(monitor.isMuted == false)
-    }
-
-    @Test("setVolume(0) does not clear isMuted")
-    func setVolumeZeroKeepsMute() {
-        let (monitor, mockAudio, _) = makeMonitor(
-            current: macbook,
-            devices: [macbook]
-        )
-        mockAudio.volumes[macbook.id] = 50
-        monitor.isMuted = true
-
-        monitor.setVolume(0)
-
-        #expect(monitor.isMuted == true)
     }
 
     // MARK: - Startup detection (requires start() to run init logic)

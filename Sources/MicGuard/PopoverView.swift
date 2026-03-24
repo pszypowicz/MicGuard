@@ -10,6 +10,11 @@ struct PopoverView: View {
             set: { monitor.isEnabled = $0 }
         ))
 
+        Button("Reload Config") {
+            monitor.reloadConfig()
+            monitor.postStatusChanged()
+        }
+
         Divider()
 
         SettingsLink {
