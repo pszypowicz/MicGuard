@@ -54,31 +54,18 @@ struct MicGuardApp: App {
             exit(0)
         }
 
-        // Daemon mode — ensure single instance via fcntl lock file
+        // Daemon mode
         Config.ensureConfigDir()
-        let lockPath = Config.configDir.appending(component: "lock").path(percentEncoded: false)
-        let lockFD = open(lockPath, O_CREAT | O_WRONLY, 0o600)
-        guard lockFD != -1 else {
-            logger.error("Could not create lock file — exiting")
-            exit(1)
-        }
-        var lock = flock(
-            l_start: 0, l_len: 0, l_pid: getpid(),
-            l_type: Int16(F_WRLCK), l_whence: Int16(SEEK_SET)
-        )
-        if fcntl(lockFD, F_SETLK, &lock) == -1 {
-            // Query which process holds the lock
-            var info = lock
-            _ = fcntl(lockFD, F_GETLK, &info)
-            logger.info("Another instance is already running (PID \(info.l_pid, privacy: .public)) — exiting")
-            exit(0)
-        }
-        // lockFD intentionally kept open — kernel releases lock on exit/crash
-
         logger.info("MicGuard starting")
         installSignalHandlers()
 
         AudioMonitor.shared.start()
+
+        // Try to start the XPC listener. This only succeeds when the process
+        // was launched by launchd with the Mach service registered (make dev).
+        // Ad-hoc signed Homebrew builds can't use SMAppService.agent() due to
+        // Launch Constraint Violations — see GitHub issue #1 for details.
+        AudioMonitor.shared.startXPCListener()
     }
 
     var body: some Scene {
@@ -252,24 +239,15 @@ struct MicGuardApp: App {
                 fputs("No input device found\n", stderr)
                 exit(1)
             }
-            // Determine current mute state from hardware.  The daemon tracks
-            // isMuted in software, but the CLI is short-lived so we read the
-            // hardware directly: volume == 0 OR hw-mute flag set → muted.
             let hwMuted = AudioDevices.isInputMuted(for: device.id) == true
             let hwVol = AudioDevices.inputVolume(for: device.id) ?? 0
             let currentlyMuted = hwMuted || hwVol == 0
-
             if currentlyMuted {
-                // Unmute: clear hw mute and set a fallback volume.  If the daemon
-                // is running, its mute listener will detect the hw flag change and
-                // restore the real pre-mute volume, overriding this fallback.
                 _ = AudioDevices.setInputMuted(for: device.id, muted: false)
                 if hwVol == 0 {
                     _ = AudioDevices.setInputVolume(for: device.id, volume: 50)
                 }
             } else {
-                // Mute: zero volume and set hw mute flag.  The daemon's volume
-                // listener will detect vol → 0 and save the pre-mute volume.
                 _ = AudioDevices.setInputVolume(for: device.id, volume: 0)
                 _ = AudioDevices.setInputMuted(for: device.id, muted: true)
             }

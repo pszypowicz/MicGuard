@@ -2,6 +2,7 @@ import CoreAudio
 import Foundation
 import Observation
 import os
+@preconcurrency import XPC
 
 @Observable
 @MainActor
@@ -38,6 +39,8 @@ public final class AudioMonitor {
 
 
     private var statusDebounceWork: DispatchWorkItem?
+    @ObservationIgnored
+    private var xpcListener: XPCListener?
     var preMuteVolume: Int = 100
 
     let audio: any AudioDeviceProviding
@@ -528,6 +531,146 @@ public final class AudioMonitor {
         }
     }
 
+    // MARK: - XPC
+
+    /// Start the XPC listener. Returns true if the Mach service is available
+    /// (process was launched by launchd with the service registered).
+    @discardableResult
+    public func startXPCListener() -> Bool {
+        do {
+            xpcListener = try XPCListener(service: micGuardMachService, targetQueue: .main) { request in
+                request.accept { [weak self] (req: MicGuardRequest) -> MicGuardResponse in
+                    guard let self else { return .error(message: "Daemon shutting down") }
+                    return MainActor.assumeIsolated {
+                        self.handleRequest(req)
+                    }
+                }
+            }
+            logger.info("XPC listener started on '\(micGuardMachService, privacy: .public)'")
+            return true
+        } catch {
+            logger.error("Failed to start XPC listener: \(error, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Handle an XPC request from the CLI and return a response.
+    public func handleRequest(_ request: MicGuardRequest) -> MicGuardResponse {
+        switch request {
+        case .ping:
+            postStatusChanged()
+            return .ok
+
+        case .enable:
+            isEnabled = true
+            return .ok
+
+        case .disable:
+            isEnabled = false
+            return .ok
+
+        case .toggle:
+            isEnabled = !isEnabled
+            return .statusInfo(enabled: isEnabled, mode: mode)
+
+        case .status:
+            return .statusInfo(enabled: isEnabled, mode: mode)
+
+        case .setDevice(let name):
+            guard inputDevices.contains(where: { $0.name == name }) else {
+                return .error(message: "Device '\(name)' not found")
+            }
+            setMode("manual")
+            setPreferredDevice(name: name)
+            return .ok
+
+        case .setVolume(let volume):
+            guard let device = audio.currentInputDevice() else {
+                return .error(message: "No input device found")
+            }
+            guard audio.setInputVolume(for: device.id, volume: volume) else {
+                return .error(message: "Failed to set volume")
+            }
+            inputVolume = volume
+            if volume > 0 && isMuted {
+                isMuted = false
+            } else if volume == 0 && !isMuted {
+                preMuteVolume = max(inputVolume, 1)
+                isMuted = true
+            }
+            debouncedPostStatusChanged()
+            return .ok
+
+        case .mute:
+            return toggleMute()
+
+        case .list:
+            return .deviceList(buildDeviceInfoList())
+
+        case .current:
+            return .device(name: currentDevice.isEmpty ? nil : currentDevice)
+        }
+    }
+
+    /// Toggle mute on the current input device using the daemon's mute state.
+    @discardableResult
+    public func toggleMute() -> MicGuardResponse {
+        guard let device = audio.currentInputDevice() else {
+            return .error(message: "No input device found")
+        }
+        if isMuted {
+            _ = audio.setInputMuted(for: device.id, muted: false)
+            _ = audio.setInputVolume(for: device.id, volume: preMuteVolume)
+            isMuted = false
+            inputVolume = preMuteVolume
+            logger.info("toggleMute: unmuted '\(device.name, privacy: .public)' vol=\(self.preMuteVolume, privacy: .public)")
+        } else {
+            preMuteVolume = max(inputVolume, 1)
+            _ = audio.setInputVolume(for: device.id, volume: 0)
+            _ = audio.setInputMuted(for: device.id, muted: true)
+            isMuted = true
+            inputVolume = 0
+            logger.info("toggleMute: muted '\(device.name, privacy: .public)' saved vol=\(self.preMuteVolume, privacy: .public)")
+        }
+        postStatusChanged()
+        return .ok
+    }
+
+    /// Build a sorted list of DeviceInfo for XPC and status broadcasting.
+    public func buildDeviceInfoList() -> [DeviceInfo] {
+        var devices: [DeviceInfo] = inputDevices
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .map { device in
+                let isCurrent = device.name == currentDevice
+                let vol = (isCurrent && isMuted) ? 0 : (audio.inputVolume(for: device.id) ?? 0)
+                let muted = (isCurrent && isMuted) || (audio.isInputMuted(for: device.id) ?? false)
+                return DeviceInfo(
+                    name: device.name,
+                    current: isCurrent,
+                    volume: vol,
+                    muted: muted,
+                    available: true,
+                    preferred: device.name == preferredDevice
+                )
+            }
+
+        // If the preferred device is disconnected, append it as unavailable
+        if !preferredDevice.isEmpty,
+           !devices.contains(where: { $0.name == preferredDevice }) {
+            devices.append(DeviceInfo(
+                name: preferredDevice,
+                current: false,
+                volume: 0,
+                muted: false,
+                available: false,
+                preferred: true
+            ))
+            devices.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+
+        return devices
+    }
+
     // MARK: - Status Notifications
 
     private func debouncedPostStatusChanged() {
@@ -545,39 +688,15 @@ public final class AudioMonitor {
         statusDebounceWork?.cancel()
         logger.debug("postStatusChanged: isMuted=\(self.isMuted, privacy: .public) inputVolume=\(self.inputVolume, privacy: .public) currentDevice='\(self.currentDevice, privacy: .public)'")
 
-        // Build per-device status, sorted alphabetically
-        var devices: [[String: Any]] = inputDevices
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            .map { device in
-                let isCurrent = device.name == currentDevice
-                let vol = (isCurrent && isMuted) ? 0 : (audio.inputVolume(for: device.id) ?? 0)
-                let muted = (isCurrent && isMuted) || (audio.isInputMuted(for: device.id) ?? false)
-                return [
-                    "name": device.name,
-                    "current": isCurrent,
-                    "volume": vol,
-                    "muted": muted,
-                    "available": true,
-                    "preferred": device.name == preferredDevice,
-                ]
-            }
-
-        // If the preferred device is disconnected, append it as unavailable
-        if !preferredDevice.isEmpty,
-           !devices.contains(where: { ($0["name"] as? String) == preferredDevice }) {
-            devices.append([
-                "name": preferredDevice,
-                "current": false,
-                "volume": 0,
-                "muted": false,
-                "available": false,
-                "preferred": true,
-            ])
-            devices.sort {
-                let a = ($0["name"] as? String) ?? ""
-                let b = ($1["name"] as? String) ?? ""
-                return a.localizedCaseInsensitiveCompare(b) == .orderedAscending
-            }
+        let devices: [[String: Any]] = buildDeviceInfoList().map { d in
+            [
+                "name": d.name,
+                "current": d.current,
+                "volume": d.volume,
+                "muted": d.muted,
+                "available": d.available,
+                "preferred": d.preferred,
+            ]
         }
 
         let payload: [String: Any] = [
@@ -602,3 +721,4 @@ public final class AudioMonitor {
         )
     }
 }
+
