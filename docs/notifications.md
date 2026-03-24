@@ -12,11 +12,11 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 | Notification | Direction | Posted when |
 |---|---|---|
-| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Volume change, mute toggle, enabled toggle, device plug/unplug, default device switch, app launch, ping response |
+| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Volume change, mute toggle, enabled toggle, device plug/unplug, default device switch, app launch, CLI command response |
 | `com.pszypowicz.MicGuard.appTerminated` | Outbound | The app is about to quit |
-| `com.pszypowicz.MicGuard.requestStatus` | Inbound | External consumers post this to request a `statusChanged` notification |
-| `com.pszypowicz.MicGuard.toggleMute` | Inbound | Toggle mute on the current input device |
-| `com.pszypowicz.MicGuard.setVolume` | Inbound | Set input volume (expects `userInfo["volume"]` as string 0-100) |
+| `com.pszypowicz.MicGuard.requestStatus` | Inbound | CLI `ping` command (or any external process) asks the daemon to re-broadcast status |
+
+CLI commands perform direct work (CoreAudio calls, config writes) and then post a `requestStatus` notification so the daemon re-reads state and broadcasts `statusChanged`. To request a status broadcast from an external integration, use `mic-guard ping`.
 
 
 ## Payload schema
@@ -60,13 +60,7 @@ The `info` value is a JSON-serialized string with the following structure:
 
 Volume and mute changes are debounced (100ms) before posting.
 
-### `setVolume` userInfo
-
-| Key | Type | Values |
-|-----|------|--------|
-| `volume` | String | Desired volume `"0"`–`"100"` |
-
-Other notifications carry no userInfo payload.
+The `appTerminated` notification carries no userInfo payload.
 
 ## API stability
 

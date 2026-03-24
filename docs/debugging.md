@@ -72,16 +72,43 @@ The handlers are idempotent — the second call is harmless since the device was
 To run MicGuard directly from a terminal (useful during development):
 
 ```bash
-# Run the built app bundle
+# Run the installed app bundle
 /Applications/MicGuard.app/Contents/MacOS/MicGuard
-
-# Or if built from source via Xcode, run from the build directory
-~/Library/Developer/Xcode/DerivedData/MicGuard-*/Build/Products/Debug/MicGuard.app/Contents/MacOS/MicGuard
 ```
 
-Note that MicGuard enforces single-instance via a lock file (`~/.config/mic-guard/lock`). If another instance is already running, the new one exits immediately. Quit the existing instance first (via the menubar menu or `killall MicGuard`).
+When installed as a login item via `SMAppService.mainApp`, macOS prevents duplicate instances. During development, quit any existing MicGuard process before launching another (`killall MicGuard`). Running two daemons simultaneously causes conflicting CoreAudio listeners.
 
 Since MicGuard uses `os.Logger` instead of stderr, you won't see log output directly in the terminal. Use `log stream` in a separate terminal tab to observe the logs.
+
+## XPC (development only)
+
+In production, the CLI communicates with the daemon via DistributedNotificationCenter (`requestStatus` notification). XPC is available as an alternative transport for development and testing.
+
+### Testing XPC locally
+
+Use the `make dev` target to build the `.app` bundle, register a LaunchAgent with launchd, and start the daemon with XPC enabled:
+
+```bash
+make dev
+```
+
+This:
+1. Builds a release `.app` bundle (`scripts/bundle.sh`)
+2. Adds `ProgramArguments` to the embedded LaunchAgent plist (launchd needs the absolute path; `SMAppService` resolves it automatically but raw `launchctl` doesn't)
+3. Registers the LaunchAgent via `launchctl bootstrap`
+4. launchd starts the daemon with the Mach service advertised
+
+### Stopping the dev daemon
+
+```bash
+make dev-stop
+```
+
+This kills the daemon and unregisters the LaunchAgent from launchd.
+
+### Why not Xcode debug?
+
+When Xcode launches MicGuard directly, the binary runs outside of launchd's context — no LaunchAgent plist is loaded, so the Mach service isn't advertised. To test the daemon UI (menu bar, settings, CoreAudio listeners), Xcode debug works fine. To test XPC communication, use `make dev`.
 
 ## Example debugging session
 
@@ -91,13 +118,20 @@ Terminal tab 1 — start streaming logs:
 log stream --predicate 'subsystem == "com.pszypowicz.MicGuard"' --level debug
 ```
 
-Terminal tab 2 — launch MicGuard:
+Terminal tab 2 — start the dev daemon:
 
 ```bash
-/Applications/MicGuard.app/Contents/MacOS/MicGuard
+make dev
 ```
 
-Tab 1 will show startup messages, device enforcement, volume changes, and any errors as they occur.
+Tab 1 will show startup messages including device enforcement, volume changes, notification handling, and any errors as they occur.
+
+Terminal tab 3 — test CLI commands:
+
+```bash
+.build/bin/mic-guard list
+.build/bin/mic-guard mute
+```
 
 ## Fish shell note
 
@@ -116,11 +150,11 @@ If MicGuard cannot find the preferred device (e.g. it was disconnected), it will
 
 ### Login item not starting
 
-MicGuard registers as a login item via `SMAppService`. If it's not starting at login:
+MicGuard registers as a login item via `SMAppService.mainApp`. If it's not starting at login:
 
 1. Check **System Settings → General → Login Items** — ensure MicGuard is listed and enabled
-2. Try removing and re-adding: toggle it off in System Settings, then relaunch MicGuard
-3. If MicGuard doesn't appear in the list, launch it manually once — it registers itself on first run
+2. Try removing and re-adding: toggle "Launch at Login" off in MicGuard Settings, then back on
+3. If MicGuard doesn't appear in the list, launch it manually and enable "Launch at Login" in Settings
 
 ### Mute not working
 
@@ -140,8 +174,8 @@ mic-guard mute
 You should see log entries in sequence:
 
 ```
-toggleMute: muted (saved volume 100)
-Volume changed to 0% on 'MacBook Pro Microphone'
+toggleMute: muted 'MacBook Pro Microphone' saved vol=100
+postStatusChanged: isMuted=true inputVolume=0 currentDevice='MacBook Pro Microphone'
 Posting status notification: {"enabled":true,"mode":"auto","devices":[...]}
 ```
 
@@ -155,6 +189,3 @@ rm -rf ~/.config/mic-guard
 
 Then relaunch MicGuard. It will re-create the config directory and initialize with the current input device as the preferred mic.
 
-### Lock file
-
-MicGuard uses a lock file (`~/.config/mic-guard/lock`) to enforce single-instance. The lock is held via `fcntl`, which the kernel releases automatically when the process exits — even after abnormal termination. The file itself remains on disk but does not block the next launch. No manual removal is needed.
