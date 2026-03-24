@@ -46,9 +46,11 @@ struct MicGuardApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
-        let args = CommandLine.arguments.dropFirst()
-        if let command = args.first {
-            Self.handleCLI(command: command, args: Array(args.dropFirst()))
+        let rawArgs = Array(CommandLine.arguments.dropFirst())
+        if let command = rawArgs.first(where: { !$0.hasPrefix("-") }) {
+            let quiet = rawArgs.contains("--quiet") || rawArgs.contains("-q")
+            let subArgs = rawArgs.filter { $0 != command && $0 != "--quiet" && $0 != "-q" }
+            Self.handleCLI(command: command, args: subArgs, quiet: quiet)
             exit(0)
         }
 
@@ -109,11 +111,7 @@ struct MicGuardApp: App {
         args.contains("--help") || args.contains("-h")
     }
 
-    private static func isQuiet(_ args: [String]) -> Bool {
-        args.contains("--quiet") || args.contains("-q")
-    }
-
-    private static func handleCLI(command: String, args: [String]) {
+    private static func handleCLI(command: String, args: [String], quiet: Bool) {
         switch command {
         case "list":
             if wantsHelp(args) {
@@ -177,29 +175,29 @@ struct MicGuardApp: App {
             }
         case "enable":
             if wantsHelp(args) {
-                print("Usage: mic-guard enable [--quiet|-q]")
+                print("Usage: mic-guard enable")
                 print("\nEnable MicGuard.")
                 return
             }
             Config.writeEnabled(true)
-            if !Self.isQuiet(args) { print("enabled") }
+            if !quiet { print("enabled") }
         case "disable":
             if wantsHelp(args) {
-                print("Usage: mic-guard disable [--quiet|-q]")
+                print("Usage: mic-guard disable")
                 print("\nDisable MicGuard.")
                 return
             }
             Config.writeEnabled(false)
-            if !Self.isQuiet(args) { print("disabled") }
+            if !quiet { print("disabled") }
         case "toggle":
             if wantsHelp(args) {
-                print("Usage: mic-guard toggle [--quiet|-q]")
+                print("Usage: mic-guard toggle")
                 print("\nToggle MicGuard on/off.")
                 return
             }
             let current = Config.readEnabled()
             Config.writeEnabled(!current)
-            if !Self.isQuiet(args) { print(current ? "disabled" : "enabled") }
+            if !quiet { print(current ? "disabled" : "enabled") }
         case "status":
             if wantsHelp(args) {
                 print("Usage: mic-guard status")
@@ -253,7 +251,10 @@ struct MicGuardApp: App {
         case "help", "--help", "-h":
             print("mic-guard \(version)")
             print()
-            print("Usage: mic-guard [command]")
+            print("Usage: mic-guard [-q] [command]")
+            print()
+            print("Global flags:")
+            print("  -q, --quiet  Suppress confirmation output")
             print()
             print("Commands:")
             print("  list [--output text|json]  List all input devices")
@@ -261,9 +262,9 @@ struct MicGuardApp: App {
             print("  set <name> Set the preferred device (switches to manual mode)")
             print("  volume <n> Set input volume (0-100)")
             print("  mute       Toggle mute on the current input device")
-            print("  enable [-q]  Enable MicGuard")
-            print("  disable [-q] Disable MicGuard")
-            print("  toggle [-q]  Toggle MicGuard on/off")
+            print("  enable     Enable MicGuard")
+            print("  disable    Disable MicGuard")
+            print("  toggle     Toggle MicGuard on/off")
             print("  status     Print status (enabled/disabled and mode)")
             print("  ping       Ask the running daemon to re-broadcast its status")
             print("  version    Print version")

@@ -28,6 +28,7 @@ public final class AudioMonitor {
     public var currentDevice: String = ""
     public var inputDevices: [(id: AudioDeviceID, name: String)] = []
     public var inputVolume: Int = 0
+    public var isMuted: Bool = false
 
     private var volumeListenerDeviceID: AudioDeviceID?
     private var volumeListenerDeviceName: String?
@@ -157,7 +158,15 @@ public final class AudioMonitor {
         previousDeviceIDs = Set(inputDevices.map(\.id))
         if let device = audio.currentInputDevice() {
             currentDevice = device.name
-            inputVolume = audio.inputVolume(for: device.id) ?? 0
+            let hwVol = audio.inputVolume(for: device.id)
+            let hwMute = audio.isInputMuted(for: device.id)
+            inputVolume = hwVol ?? 0
+            logger.debug("Startup: device='\(device.name, privacy: .public)' id=\(device.id, privacy: .public) hwVol=\(hwVol.map(String.init) ?? "nil", privacy: .public) hwMute=\(hwMute.map(String.init) ?? "nil", privacy: .public)")
+            if inputVolume == 0 || hwMute == true {
+                isMuted = true
+                inputVolume = 0
+                logger.info("Startup: hardware already muted on '\(device.name, privacy: .public)'")
+            }
             registerVolumeListener(for: device.id, name: device.name)
         }
 
@@ -356,8 +365,9 @@ public final class AudioMonitor {
     private func settleOnDevice(_ device: (id: AudioDeviceID, name: String)?) {
         if let device {
             currentDevice = device.name
+            isMuted = false
             inputVolume = audio.inputVolume(for: device.id) ?? 0
-            logger.debug("Settled on '\(device.name, privacy: .public)' [id=\(device.id, privacy: .public)]")
+            logger.debug("settleOnDevice: '\(device.name, privacy: .public)' [id=\(device.id, privacy: .public)] isMuted=\(self.isMuted, privacy: .public) inputVolume=\(self.inputVolume, privacy: .public)")
             if volumeListenerDeviceID != device.id {
                 registerVolumeListener(for: device.id, name: device.name)
             }
@@ -441,7 +451,11 @@ public final class AudioMonitor {
             Task { @MainActor in
                 guard let self, deviceID == self.volumeListenerDeviceID else { return }
                 if let vol = audioRef.inputVolume(for: deviceID), vol != self.inputVolume {
-                    logger.debug("Volume changed to \(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
+                    if self.isMuted {
+                        logger.debug("Volume listener: ignoring vol=\(vol, privacy: .public)% (software muted) on '\(deviceName, privacy: .public)'")
+                        return
+                    }
+                    logger.debug("Volume listener: vol=\(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
                     self.inputVolume = vol
                     self.debouncedPostStatusChanged()
                 }
@@ -476,8 +490,12 @@ public final class AudioMonitor {
                     guard let self, deviceID == self.muteListenerDeviceID else { return }
                     let vol = audioRef.inputVolume(for: deviceID) ?? self.inputVolume
                     guard vol != self.inputVolume else { return }
+                    if self.isMuted {
+                        logger.debug("Mute listener: ignoring vol=\(vol, privacy: .public)% (software muted) on '\(deviceName, privacy: .public)'")
+                        return
+                    }
                     self.inputVolume = vol
-                    logger.debug("Mute changed on '\(deviceName, privacy: .public)', volume now \(self.inputVolume, privacy: .public)%")
+                    logger.debug("Mute listener: vol=\(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
                     self.debouncedPostStatusChanged()
                 }
             }
@@ -531,20 +549,25 @@ public final class AudioMonitor {
             return
         }
 
-        // Always mute/unmute via volume — native mute flag alone doesn't
-        // silence the mic on all devices (e.g. MacBook Pro Microphone).
-        let currentVolume = audio.inputVolume(for: device.id) ?? 0
-        if currentVolume > 0 {
-            preMuteVolume = currentVolume
-            _ = audio.setInputVolume(for: device.id, volume: 0)
-            _ = audio.setInputMuted(for: device.id, muted: true)
-            logger.info("toggleMute: muted (saved volume \(self.preMuteVolume, privacy: .public))")
+        logger.debug("toggleMute: isMuted=\(self.isMuted, privacy: .public) hwVol=\(self.audio.inputVolume(for: device.id) ?? -1, privacy: .public) hwMute=\(self.audio.isInputMuted(for: device.id).map(String.init) ?? "nil", privacy: .public) preMuteVolume=\(self.preMuteVolume, privacy: .public)")
+
+        if !isMuted {
+            // Mute: try hardware, fall back to software-only
+            let currentVolume = audio.inputVolume(for: device.id) ?? 100
+            preMuteVolume = max(currentVolume, 1)
+            let volOk = audio.setInputVolume(for: device.id, volume: 0)
+            let muteOk = audio.setInputMuted(for: device.id, muted: true)
+            isMuted = true
+            inputVolume = 0
+            logger.info("toggleMute: muted (saved volume \(self.preMuteVolume, privacy: .public), volOk=\(volOk, privacy: .public), muteOk=\(muteOk, privacy: .public))")
         } else {
-            _ = audio.setInputVolume(for: device.id, volume: preMuteVolume)
-            _ = audio.setInputMuted(for: device.id, muted: false)
-            logger.info("toggleMute: unmuted (restored volume \(self.preMuteVolume, privacy: .public))")
+            // Unmute
+            let volOk = audio.setInputVolume(for: device.id, volume: preMuteVolume)
+            let muteOk = audio.setInputMuted(for: device.id, muted: false)
+            isMuted = false
+            inputVolume = audio.inputVolume(for: device.id) ?? preMuteVolume
+            logger.info("toggleMute: unmuted (restored volume \(self.preMuteVolume, privacy: .public), volOk=\(volOk, privacy: .public), muteOk=\(muteOk, privacy: .public))")
         }
-        inputVolume = audio.inputVolume(for: device.id) ?? 0
         debouncedPostStatusChanged()
     }
 
@@ -559,7 +582,8 @@ public final class AudioMonitor {
         } else {
             logger.error("setVolume: failed to set volume to \(clamped, privacy: .public)")
         }
-        // If setting volume > 0 and device has native mute, also unmute
+        // If setting volume > 0, clear software mute and native mute
+        if clamped > 0 { isMuted = false }
         if clamped > 0, audio.isInputMuted(for: device.id) == true {
             _ = audio.setInputMuted(for: device.id, muted: false)
         }
@@ -582,16 +606,18 @@ public final class AudioMonitor {
 
     public func postStatusChanged() {
         statusDebounceWork?.cancel()
+        logger.debug("postStatusChanged: isMuted=\(self.isMuted, privacy: .public) inputVolume=\(self.inputVolume, privacy: .public) currentDevice='\(self.currentDevice, privacy: .public)'")
 
         // Build per-device status, sorted alphabetically
         var devices: [[String: Any]] = inputDevices
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             .map { device in
-                let vol = audio.inputVolume(for: device.id) ?? 0
-                let muted = audio.isInputMuted(for: device.id) ?? false
+                let isCurrent = device.name == currentDevice
+                let vol = (isCurrent && isMuted) ? 0 : (audio.inputVolume(for: device.id) ?? 0)
+                let muted = (isCurrent && isMuted) || (audio.isInputMuted(for: device.id) ?? false)
                 return [
                     "name": device.name,
-                    "current": device.name == currentDevice,
+                    "current": isCurrent,
                     "volume": vol,
                     "muted": muted,
                     "available": true,
