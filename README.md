@@ -28,6 +28,39 @@ make install
 
 MicGuard is a macOS menubar app that monitors the default input device via CoreAudio. When the system switches the input (e.g. when AirPods connect), MicGuard immediately reverts to your preferred microphone.
 
+On first launch the current input device becomes your preferred mic. You can change it anytime from Settings or with `mic-guard set`.
+
+### Features
+
+- **Menubar daemon** — runs silently in the background with a shield+mic icon
+- **Auto-revert** — reverts unwanted input device switches caused by Bluetooth connections
+- **Mute / volume control** — toggle mute and set input volume via CLI or distributed notifications
+- **CLI tool** — `mic-guard` binary for scripting (`list`, `set`, `enable`, `toggle`, `mute`, `volume`, etc.)
+- **SketchyBar integration** — reference plugin with shield + mic items, device picker popup, and mute on click
+- **Distributed notifications** — real-time status broadcasts for custom integrations
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/menubar.png" width="240" alt="Menubar popup"><br><em>Menubar popup</em></td>
+    <td align="center"><img src="docs/images/settings.png" width="360" alt="Settings view"><br><em>Settings</em></td>
+    <td align="center"><img src="docs/images/sketchybar.png" width="240" alt="SketchyBar device picker"><br><em>SketchyBar integration</em></td>
+  </tr>
+</table>
+
+## Modes
+
+MicGuard has two device enforcement modes, configurable in Settings or via `mic-guard set`:
+
+### Auto (default)
+
+Protects your preferred mic during device connect/disconnect events. If you switch the input device in System Settings after devices have settled, MicGuard recognizes this as intentional and saves the new choice as your preferred mic.
+
+### Manual
+
+Always reverts to your chosen preferred device, no matter when or why the switch happened. To change the preferred device you must explicitly select it in Settings or run `mic-guard set <name>`.
+
 ## Documentation
 
 See the full docs at **[pszypowicz.github.io/MicGuard](https://pszypowicz.github.io/MicGuard/)** — covering [CLI reference](https://pszypowicz.github.io/MicGuard/cli.html), [debugging](https://pszypowicz.github.io/MicGuard/debugging.html), [integrations](https://pszypowicz.github.io/MicGuard/integrations.html), [notifications](https://pszypowicz.github.io/MicGuard/notifications.html), and [releasing](https://pszypowicz.github.io/MicGuard/releasing.html).
