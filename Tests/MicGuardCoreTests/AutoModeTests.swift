@@ -7,9 +7,10 @@ import Testing
 @MainActor
 struct AutoModeTests {
 
-    @Test("BT hijack reverts to preferred device")
-    func btHijackRevertsToPreferred() {
-        // Start with MacBook as preferred and current, only MacBook connected
+    // MARK: - Normal ordering (DEVICE_LIST_CHANGED → DEFAULT_INPUT_CHANGED)
+
+    @Test("New non-preferred device → revert to preferred")
+    func newDeviceRevertsToPreferred() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "MacBook Pro Microphone",
             current: macbook,
@@ -19,71 +20,39 @@ struct AutoModeTests {
         // AirPods connect and macOS makes them default
         mockAudio.devices = [macbook, airpods]
         mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
 
         monitor.handleDeviceListChanged()
 
-        // Revert is deferred until DEFAULT_INPUT_CHANGED confirms
-        #expect(monitor.pendingBTHijack == true)
-        #expect(mockAudio.setInputDeviceCalls.isEmpty,
-                "Should NOT revert yet — waiting for correlation")
+        // handleDeviceListChanged only tracks — doesn't revert
+        #expect(mockAudio.setInputDeviceCalls.isEmpty)
 
-        // DEFAULT_INPUT_CHANGED fires, confirming the hijack
+        // DEFAULT_INPUT_CHANGED triggers the policy decision
         monitor.handleDefaultInputChanged()
 
-        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"),
-                "Should revert to preferred MacBook")
+        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"))
         #expect(monitor.currentDevice == "MacBook Pro Microphone")
-        #expect(monitor.pendingBTHijack == false)
     }
 
-    @Test("BT hijack with preferred unavailable stays on BT device")
-    func btHijackPreferredUnavailable() {
-        // Preferred is a USB mic that is disconnected
-        let (monitor, mockAudio, _) = makeMonitor(
-            preferred: "USB Microphone",
-            current: macbook,
-            devices: [macbook]
-        )
-
-        // AirPods connect, USB mic still absent
-        mockAudio.devices = [macbook, airpods]
-        mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
-
-        monitor.handleDeviceListChanged()
-
-        #expect(monitor.pendingBTHijack == true)
-
-        // DEFAULT_INPUT_CHANGED confirms — but preferred not connected
-        monitor.handleDefaultInputChanged()
-
-        #expect(mockAudio.setInputDeviceCalls.isEmpty,
-                "Should not attempt to revert — preferred not connected")
-        #expect(monitor.currentDevice == "AirPods Pro 3")
-    }
-
-    @Test("BT device IS the preferred device — no revert")
-    func btDeviceIsPreferred() {
+    @Test("Preferred device reconnects → accepted")
+    func preferredDeviceReconnects() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "AirPods Pro 3",
             current: macbook,
             devices: [macbook]
         )
 
-        // AirPods connect and become default — but they ARE the preferred device
         mockAudio.devices = [macbook, airpods]
         mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
 
         monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
 
         #expect(mockAudio.setInputDeviceCalls.isEmpty,
-                "Should not revert — BT device is preferred")
+                "Should NOT revert — device is preferred")
         #expect(monitor.currentDevice == "AirPods Pro 3")
     }
 
-    @Test("User-initiated switch saves as new preferred")
+    @Test("User switches to known device → saved as preferred")
     func userSwitchSavesPreferred() {
         let (monitor, mockAudio, mockConfig) = makeMonitor(
             preferred: "MacBook Pro Microphone",
@@ -91,7 +60,7 @@ struct AutoModeTests {
             devices: [macbook, usbMic]
         )
 
-        // User switches to USB mic (handleDefaultInputChanged, not device list change)
+        // USB mic already in device list — user switches via System Settings
         mockAudio.currentDefault = usbMic
 
         monitor.handleDefaultInputChanged()
@@ -101,31 +70,472 @@ struct AutoModeTests {
         #expect(monitor.currentDevice == "USB Microphone")
     }
 
-    @Test("Non-BT device connects — no hijack detection")
-    func nonBTDeviceNoHijack() {
+    // MARK: - Race ordering (DEFAULT_INPUT_CHANGED → DEVICE_LIST_CHANGED)
+
+    @Test("New device via race → revert, subsequent DEVICE_LIST_CHANGED is no-op")
+    func raceOrderingStillReverts() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        // DEFAULT_INPUT_CHANGED fires before DEVICE_LIST_CHANGED
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDefaultInputChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"),
+                "Should detect new device even via race ordering")
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+
+        // Subsequent DEVICE_LIST_CHANGED — no double revert
+        mockAudio.setInputDeviceCalls = []
+        monitor.handleDeviceListChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.isEmpty)
+    }
+
+    @Test("Preferred device reconnects via race → accepted")
+    func preferredReconnectsRaceOrdering() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "AirPods Pro 3",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDefaultInputChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.isEmpty)
+        #expect(monitor.currentDevice == "AirPods Pro 3")
+    }
+
+    @Test("New non-BT device via race → same revert rule")
+    func nonBTNewDeviceRaceReverts() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "MacBook Pro Microphone",
             current: macbook,
             devices: [macbook]
         )
 
-        // USB mic connects and becomes default (transport = usb, not bluetooth)
+        // USB mic connects, DEFAULT_INPUT_CHANGED fires first
         mockAudio.devices = [macbook, usbMic]
         mockAudio.currentDefault = usbMic
-        mockAudio.transportTypes[usbMic.id] = "usb"
+
+        monitor.handleDefaultInputChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"),
+                "New device reverted regardless of transport type")
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+    }
+
+    // MARK: - Post-revert
+
+    @Test("Stale callback after revert → re-enforces preferred")
+    func staleCallbackAfterRevert() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook, airpods]
+        )
+        monitor.revertedFromDeviceID = airpods.id
+        monitor.revertTimestamp = CFAbsoluteTimeGetCurrent()
+
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.preferredDevice == "MacBook Pro Microphone")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"))
+    }
+
+    @Test("Multiple stale callbacks after revert all caught")
+    func multipleStaleCallbacksCaught() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook, airpods]
+        )
+        monitor.revertedFromDeviceID = airpods.id
+        monitor.revertTimestamp = CFAbsoluteTimeGetCurrent()
+
+        // First stale callback
+        mockAudio.currentDefault = airpods
+        monitor.handleDefaultInputChanged()
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // Second stale callback (macOS fires multiple during BT connect)
+        mockAudio.currentDefault = airpods
+        monitor.handleDefaultInputChanged()
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // revertedFromDeviceID still set — will be cleared by timer in production
+        #expect(monitor.revertedFromDeviceID == airpods.id)
+    }
+
+    @Test("Stale callback check ignores unrelated devices")
+    func staleCallbackIgnoresUnrelated() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook, airpods, usbMic]
+        )
+        monitor.revertedFromDeviceID = airpods.id
+        monitor.revertTimestamp = CFAbsoluteTimeGetCurrent()
+
+        // USB mic becomes default — NOT the reverted device
+        mockAudio.currentDefault = usbMic
+
+        monitor.handleDefaultInputChanged()
+
+        // Should accept switch (not stale), and save as preferred (no recent activity on MacBook)
+        #expect(monitor.currentDevice == "USB Microphone")
+        #expect(monitor.preferredDevice == "USB Microphone")
+    }
+
+    @Test("Stale callback, preferred unavailable → settles on current")
+    func staleCallbackPreferredUnavailable() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "USB Microphone",
+            current: macbook,
+            devices: [macbook, airpods]
+        )
+        monitor.revertedFromDeviceID = airpods.id
+        monitor.revertTimestamp = CFAbsoluteTimeGetCurrent()
+
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "AirPods Pro 3")
+    }
+
+    @Test("Full flow: hijack → revert → stale callbacks → user switch accepted")
+    func fullHijackThenUserSwitch() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        // 1. Device connects — hijack
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(monitor.revertedFromDeviceID == airpods.id)
+
+        // 2. First stale callback
+        mockAudio.currentDefault = airpods
+        monitor.handleDefaultInputChanged()
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // 3. Second stale callback
+        mockAudio.currentDefault = airpods
+        monitor.handleDefaultInputChanged()
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // 4. Simulate suppression expiry + clear recent activity (>3s passed)
+        monitor.revertedFromDeviceID = nil
+        monitor.recentDeviceActivity.removeAll()
+
+        // 5. User manually switches (no DEVICE_LIST_CHANGED)
+        mockAudio.currentDefault = airpods
+        mockAudio.setInputDeviceCalls = []
+
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.preferredDevice == "AirPods Pro 3")
+        #expect(mockConfig.writePreferredDeviceCalls.contains("AirPods Pro 3"))
+        #expect(monitor.currentDevice == "AirPods Pro 3")
+    }
+
+    @Test("Preferred device disconnects → fallback does not overwrite preferred")
+    func disconnectFallbackKeepsPreferred() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "AirPods Pro 3",
+            current: airpods,
+            devices: [macbook, airpods]
+        )
+
+        // AirPods disconnect
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
 
         monitor.handleDeviceListChanged()
 
-        #expect(mockAudio.setInputDeviceCalls.isEmpty,
-                "Should not trigger BT hijack for non-bluetooth device")
-        #expect(monitor.currentDevice == "USB Microphone")
+        // DEFAULT_INPUT_CHANGED: system fallback to MacBook
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(monitor.preferredDevice == "AirPods Pro 3",
+                "Should NOT overwrite preferred — this is a system fallback")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+
+        // AirPods reconnect — should switch back to preferred
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "AirPods Pro 3",
+                "Should accept — AirPods is the preferred device")
     }
 
-    @Test("Startup enforces preferred device in auto mode")
-    func startupEnforcesPreferred() {
-        // Simulate reboot: macOS picked AirPods as default, but user prefers MacBook
+    // MARK: - Edge cases
+
+    @Test("Preferred not connected → stays on new device")
+    func preferredNotConnected() {
         let (monitor, mockAudio, _) = makeMonitor(
-            mode: "auto",
+            preferred: "USB Microphone",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.isEmpty,
+                "Should not revert — preferred not connected")
+        #expect(monitor.currentDevice == "AirPods Pro 3")
+    }
+
+    @Test("setInputDevice fails → stays on current")
+    func setInputDeviceFails() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        mockAudio.setInputDeviceResult = false
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"))
+        #expect(monitor.currentDevice == "AirPods Pro 3")
+    }
+
+    @Test("No preferred set → accepts new device")
+    func noPreferredAcceptsNew() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "AirPods Pro 3")
+        #expect(mockAudio.setInputDeviceCalls.isEmpty)
+    }
+
+    @Test("Second DEVICE_LIST_CHANGED after revert → no re-trigger")
+    func secondDeviceListChangeNoRetrigger() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        mockAudio.setInputDeviceCalls = []
+        mockAudio.currentDefault = macbook
+
+        monitor.handleDeviceListChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.isEmpty)
+    }
+
+    @Test("Device disconnects → settles on fallback")
+    func deviceDisconnectsFallback() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "AirPods Pro 3",
+            current: airpods,
+            devices: [macbook, airpods]
+        )
+
+        // AirPods disconnect, macOS falls back to MacBook
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
+
+        monitor.handleDeviceListChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+    }
+
+    @Test("BT instability: switch away without disconnect does not save preferred")
+    func btInstabilityNoDisconnect() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "AirPods Pro 3",
+            current: airpods,
+            devices: [macbook, airpods]
+        )
+
+        // Simulate recent DEVICE_LIST_CHANGED activity on AirPods (BT reconnection)
+        monitor.recentDeviceActivity[airpods.id] = CFAbsoluteTimeGetCurrent()
+
+        // macOS switches to MacBook due to BT instability — AirPods still in device list
+        mockAudio.currentDefault = macbook
+
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone",
+                "Should accept the switch")
+        #expect(monitor.preferredDevice == "AirPods Pro 3",
+                "Should NOT save — old device had recent connection activity")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+    }
+
+    @Test("Production replay: rapid BT connect/disconnect/connect cycle")
+    func productionReplayRapidCycle() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        // Cycle 1: AirPods connect → reverted
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // Cycle 1: stale callback
+        mockAudio.currentDefault = airpods
+        monitor.handleDefaultInputChanged()
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // Cycle 1: AirPods disconnect
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
+        monitor.handleDeviceListChanged()
+
+        // Cycle 2: AirPods reconnect ~1s later → still reverted (new device)
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+        mockAudio.setInputDeviceCalls = []
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"),
+                "Should revert — this is a new device reconnection")
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // Cycle 2: AirPods disconnect
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
+        monitor.handleDeviceListChanged()
+
+        // Cycle 3: AirPods reconnect again
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+        mockAudio.setInputDeviceCalls = []
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"),
+                "Should still revert on each reconnection")
+
+        // Through all cycles, preferred never changed
+        #expect(monitor.preferredDevice == "MacBook Pro Microphone")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+    }
+
+    @Test("Production replay: preferred disconnect → fallback → reconnect accepted")
+    func productionReplayPreferredDisconnectReconnect() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "AirPods Pro 3",
+            current: airpods,
+            devices: [macbook, airpods]
+        )
+
+        // AirPods disconnect
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(monitor.preferredDevice == "AirPods Pro 3",
+                "Preferred should NOT change on disconnect fallback")
+
+        // AirPods reconnect → should be accepted (it's the preferred)
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+        mockAudio.setInputDeviceCalls = []
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "AirPods Pro 3")
+        #expect(mockAudio.setInputDeviceCalls.isEmpty,
+                "Should NOT revert — AirPods is the preferred device")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+    }
+
+    @Test("Production replay: BT glitch switches to MacBook then AirPods disconnect later")
+    func productionReplayBTGlitchThenDisconnect() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "AirPods Pro 3",
+            current: airpods,
+            devices: [macbook, airpods]
+        )
+
+        // Simulate AirPods had recent connection activity
+        monitor.recentDeviceActivity[airpods.id] = CFAbsoluteTimeGetCurrent()
+
+        // macOS glitches: switches to MacBook while AirPods still in device list
+        mockAudio.currentDefault = macbook
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(monitor.preferredDevice == "AirPods Pro 3",
+                "BT instability detected — preferred preserved")
+
+        // 2.2s later: AirPods actually removed from device list
+        mockAudio.devices = [macbook]
+        monitor.handleDeviceListChanged()
+
+        // AirPods reconnect
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+        monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "AirPods Pro 3",
+                "Preferred device reconnected — accepted")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+    }
+
+    @Test("Startup enforces preferred")
+    func startupEnforcesPreferred() {
+        let (monitor, mockAudio, _) = makeMonitor(
             preferred: "MacBook Pro Microphone",
             current: airpods,
             devices: [macbook, airpods]
@@ -137,8 +547,8 @@ struct AutoModeTests {
         #expect(monitor.currentDevice == "MacBook Pro Microphone")
     }
 
-    @Test("Startup does nothing when preferred device is already active")
-    func startupNoOpWhenAlreadyPreferred() {
+    @Test("Startup no-op when preferred is active")
+    func startupNoOp() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "MacBook Pro Microphone",
             current: macbook,
@@ -148,12 +558,10 @@ struct AutoModeTests {
         monitor.enforcePreferredOnStartup()
 
         #expect(mockAudio.setInputDeviceCalls.isEmpty)
-        #expect(monitor.currentDevice == "MacBook Pro Microphone")
     }
 
-    @Test("Startup skips enforcement when preferred device is disconnected")
-    func startupSkipsDisconnectedPreferred() {
-        // Preferred is USB mic but it's not connected
+    @Test("Startup skips when preferred is disconnected")
+    func startupSkipsDisconnected() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "USB Microphone",
             current: airpods,
@@ -164,195 +572,5 @@ struct AutoModeTests {
 
         #expect(mockAudio.setInputDeviceCalls.isEmpty)
         #expect(monitor.currentDevice == "AirPods Pro 3")
-    }
-
-    @Test("Stale callback after BT revert does not save as preferred")
-    func staleCallbackAfterRevert() {
-        // BT hijack was reverted — flag is set
-        let (monitor, mockAudio, mockConfig) = makeMonitor(
-            preferred: "MacBook Pro Microphone",
-            current: macbook,
-            devices: [macbook, airpods]
-        )
-        monitor.revertingToPreferred = true
-
-        // Stale callback arrives: macOS still reports AirPods as default
-        mockAudio.currentDefault = airpods
-
-        monitor.handleDefaultInputChanged()
-
-        #expect(monitor.preferredDevice == "MacBook Pro Microphone",
-                "Should NOT save AirPods as preferred")
-        #expect(mockConfig.writePreferredDeviceCalls.isEmpty,
-                "Should NOT write preferred device")
-        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"),
-                "Should re-enforce MacBook")
-        #expect(monitor.revertingToPreferred == false,
-                "Flag should be cleared")
-    }
-
-    @Test("Flag is cleared even if preferred is unavailable during stale callback")
-    func staleCallbackPreferredUnavailable() {
-        // Preferred device disconnected between revert and stale callback
-        let (monitor, mockAudio, _) = makeMonitor(
-            preferred: "USB Microphone",
-            current: macbook,
-            devices: [macbook, airpods]
-        )
-        monitor.revertingToPreferred = true
-
-        mockAudio.currentDefault = airpods
-
-        monitor.handleDefaultInputChanged()
-
-        #expect(monitor.revertingToPreferred == false, "Flag should be cleared")
-        // Falls through to settleOnDevice since preferred not in list
-        #expect(monitor.currentDevice == "AirPods Pro 3")
-    }
-
-    @Test("User manual switch after BT hijack revert is accepted")
-    func userSwitchAfterHijackRevert() {
-        let (monitor, mockAudio, mockConfig) = makeMonitor(
-            preferred: "MacBook Pro Microphone",
-            current: macbook,
-            devices: [macbook]
-        )
-
-        // 1. AirPods connect — BT hijack
-        mockAudio.devices = [macbook, airpods]
-        mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
-
-        monitor.handleDeviceListChanged()
-        monitor.handleDefaultInputChanged()
-
-        #expect(monitor.currentDevice == "MacBook Pro Microphone")
-        #expect(monitor.revertingToPreferred == true)
-
-        // 2. Stale callback arrives — re-enforces preferred
-        mockAudio.currentDefault = airpods
-        monitor.handleDefaultInputChanged()
-
-        #expect(monitor.revertingToPreferred == false)
-        #expect(monitor.currentDevice == "MacBook Pro Microphone")
-
-        // 3. User manually switches to AirPods in System Settings
-        //    Only DEFAULT_INPUT_CHANGED fires (no DEVICE_LIST_CHANGED)
-        mockAudio.currentDefault = airpods
-        mockAudio.setInputDeviceCalls = []
-
-        monitor.handleDefaultInputChanged()
-
-        #expect(monitor.preferredDevice == "AirPods Pro 3",
-                "Should accept user's manual switch")
-        #expect(mockConfig.writePreferredDeviceCalls.contains("AirPods Pro 3"))
-        #expect(monitor.currentDevice == "AirPods Pro 3")
-    }
-
-    @Test("DEFAULT_INPUT_CHANGED before DEVICE_LIST_CHANGED still detects hijack")
-    func defaultInputBeforeDeviceList() {
-        // DEFAULT_INPUT_CHANGED can race ahead of DEVICE_LIST_CHANGED
-        // due to Task scheduling on MainActor
-        let (monitor, mockAudio, mockConfig) = makeMonitor(
-            preferred: "MacBook Pro Microphone",
-            current: macbook,
-            devices: [macbook]
-        )
-
-        // AirPods connect — CoreAudio state updated, but only DEFAULT_INPUT_CHANGED
-        // fires first (DEVICE_LIST_CHANGED hasn't been processed yet)
-        mockAudio.devices = [macbook, airpods]
-        mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
-
-        monitor.handleDefaultInputChanged()
-
-        #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"),
-                "Should detect hijack even when DEFAULT_INPUT_CHANGED arrives first")
-        #expect(monitor.currentDevice == "MacBook Pro Microphone")
-        #expect(mockConfig.writePreferredDeviceCalls.isEmpty,
-                "Should NOT save AirPods as preferred")
-
-        // Subsequent DEVICE_LIST_CHANGED should be a no-op
-        mockAudio.setInputDeviceCalls = []
-        monitor.handleDeviceListChanged()
-
-        #expect(mockAudio.setInputDeviceCalls.isEmpty,
-                "Should not double-revert — AirPods already in previousDeviceIDs")
-    }
-
-    @Test("Preferred BT device reconnect via DEFAULT_INPUT_CHANGED first is accepted")
-    func preferredBTReconnectRaceOrdering() {
-        let (monitor, mockAudio, _) = makeMonitor(
-            preferred: "AirPods Pro 3",
-            current: macbook,
-            devices: [macbook]
-        )
-
-        // AirPods (the preferred device) reconnect, DEFAULT_INPUT_CHANGED first
-        mockAudio.devices = [macbook, airpods]
-        mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
-
-        monitor.handleDefaultInputChanged()
-
-        #expect(mockAudio.setInputDeviceCalls.isEmpty,
-                "Should NOT revert — AirPods is the preferred device")
-        #expect(monitor.currentDevice == "AirPods Pro 3")
-    }
-
-    @Test("Non-BT device connection via race does not save as preferred")
-    func nonBTDeviceConnectionRace() {
-        let (monitor, mockAudio, mockConfig) = makeMonitor(
-            preferred: "MacBook Pro Microphone",
-            current: macbook,
-            devices: [macbook]
-        )
-
-        // USB mic connects, DEFAULT_INPUT_CHANGED fires first
-        mockAudio.devices = [macbook, usbMic]
-        mockAudio.currentDefault = usbMic
-        mockAudio.transportTypes[usbMic.id] = "usb"
-
-        monitor.handleDefaultInputChanged()
-
-        #expect(monitor.currentDevice == "USB Microphone",
-                "Should accept non-BT device")
-        #expect(monitor.preferredDevice == "MacBook Pro Microphone",
-                "Should NOT save as preferred — this is a device connection, not user switch")
-        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
-    }
-
-    @Test("Second DEVICE_LIST_CHANGED after revert does not re-trigger hijack")
-    func secondDeviceListChangeAfterRevert() {
-        let (monitor, mockAudio, _) = makeMonitor(
-            preferred: "MacBook Pro Microphone",
-            current: macbook,
-            devices: [macbook]
-        )
-
-        // AirPods connect — first DEVICE_LIST_CHANGED
-        mockAudio.devices = [macbook, airpods]
-        mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
-
-        monitor.handleDeviceListChanged()
-        #expect(monitor.pendingBTHijack == true)
-
-        // DEFAULT_INPUT_CHANGED confirms hijack and reverts
-        monitor.handleDefaultInputChanged()
-        #expect(monitor.currentDevice == "MacBook Pro Microphone")
-
-        mockAudio.setInputDeviceCalls = []
-
-        // Second DEVICE_LIST_CHANGED arrives (race variant C from logs)
-        // AirPods still in list but MacBook is now default after revert
-        mockAudio.currentDefault = macbook
-
-        monitor.handleDeviceListChanged()
-
-        #expect(mockAudio.setInputDeviceCalls.isEmpty,
-                "Should not re-trigger — AirPods already in previousDeviceIDs")
-        #expect(monitor.pendingBTHijack == false)
     }
 }
