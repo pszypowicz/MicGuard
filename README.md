@@ -39,6 +39,17 @@ On first launch the current input device becomes your preferred mic. You can cha
 - **SketchyBar integration** — reference plugin with shield + mic items, device picker popup, and mute on click
 - **Distributed notifications** — real-time status broadcasts for custom integrations
 
+## Demo
+
+AirPods connecting hijacks your input device. MicGuard reverts it instantly.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/demo-micguard-disabled.gif" alt="MicGuard disabled: input device gets hijacked"><br><em>MicGuard disabled</em></td>
+    <td align="center"><img src="docs/images/demo-micguard-enabled.gif" alt="MicGuard enabled: input device is preserved"><br><em>MicGuard enabled</em></td>
+  </tr>
+</table>
+
 ## Screenshots
 
 <table>
