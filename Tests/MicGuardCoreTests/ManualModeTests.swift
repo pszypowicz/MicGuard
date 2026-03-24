@@ -63,6 +63,24 @@ struct ManualModeTests {
         #expect(monitor.preferredDevice == "USB Microphone")
     }
 
+    @Test("setPreferredDevice updates volume and clears mute")
+    func setPreferredDeviceUpdatesState() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            mode: "manual",
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook, usbMic]
+        )
+        mockAudio.volumes[usbMic.id] = 80
+        monitor.isMuted = true
+
+        monitor.setPreferredDevice(name: "USB Microphone")
+
+        #expect(monitor.currentDevice == "USB Microphone")
+        #expect(monitor.inputVolume == 80)
+        #expect(monitor.isMuted == false)
+    }
+
     @Test("Startup enforces preferred device in manual mode")
     func startupEnforcesPreferredManual() {
         let (monitor, mockAudio, _) = makeMonitor(
