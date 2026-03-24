@@ -105,7 +105,7 @@ struct AutoModeTests {
         #expect(monitor.currentDevice == "USB Microphone")
     }
 
-    @Test("Switch during settle period → accepted but preferred NOT saved")
+    @Test("Switch during settle period → reverted to preferred")
     func switchDuringSettle() {
         let (monitor, mockAudio, mockConfig) = makeMonitor(
             preferred: "MacBook Pro Microphone",
@@ -119,10 +119,9 @@ struct AutoModeTests {
         mockAudio.currentDefault = airpods
         monitor.handleDefaultInputChanged()
 
-        #expect(monitor.currentDevice == "AirPods Pro 3",
-                "Should accept the switch")
-        #expect(monitor.preferredDevice == "MacBook Pro Microphone",
-                "Should NOT save — devices still settling")
+        #expect(monitor.currentDevice == "MacBook Pro Microphone",
+                "Should revert — within settle period")
+        #expect(monitor.preferredDevice == "MacBook Pro Microphone")
         #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
     }
 
@@ -142,16 +141,11 @@ struct AutoModeTests {
 
         #expect(monitor.currentDevice == "MacBook Pro Microphone")
 
-        // 2. Stale callbacks during settle period — accepted without saving
+        // 2. Stale callbacks during settle period — reverted
         mockAudio.currentDefault = airpods
         monitor.handleDefaultInputChanged()
-        #expect(monitor.currentDevice == "AirPods Pro 3")
-        #expect(monitor.preferredDevice == "MacBook Pro Microphone")
-
-        // 3. macOS switches back — also during settle, not saved
-        mockAudio.currentDefault = macbook
-        monitor.handleDefaultInputChanged()
-        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(monitor.currentDevice == "MacBook Pro Microphone",
+                "Stale callback reverted during settle period")
         #expect(monitor.preferredDevice == "MacBook Pro Microphone")
 
         // 4. Simulate settle period passing
@@ -223,7 +217,7 @@ struct AutoModeTests {
         #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
     }
 
-    @Test("BT glitch during settle → preferred preserved")
+    @Test("BT glitch during settle → reverted to preferred")
     func btGlitchDuringSettle() {
         let (monitor, mockAudio, mockConfig) = makeMonitor(
             preferred: "AirPods Pro 3",
@@ -238,9 +232,9 @@ struct AutoModeTests {
         mockAudio.currentDefault = macbook
         monitor.handleDefaultInputChanged()
 
-        #expect(monitor.currentDevice == "MacBook Pro Microphone")
-        #expect(monitor.preferredDevice == "AirPods Pro 3",
-                "Within settle period — don't save")
+        #expect(monitor.currentDevice == "AirPods Pro 3",
+                "Should revert to preferred during settle period")
+        #expect(monitor.preferredDevice == "AirPods Pro 3")
         #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
     }
 

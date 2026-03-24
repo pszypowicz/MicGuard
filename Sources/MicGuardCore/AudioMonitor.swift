@@ -339,26 +339,22 @@ public final class AudioMonitor {
 
         let isSettled = CFAbsoluteTimeGetCurrent() - lastDeviceListChange >= settleSeconds
 
-        if isNew {
-            // New device appeared and became default
-            let preferred = readPreference()
-            if preferred == newDefault.name || preferred.isEmpty {
-                logger.debug("Preferred device '\(newDefault.name, privacy: .public)' reconnected")
-                settleOnDevice(newDefault)
-            } else {
-                logger.info("New device '\(newDefault.name, privacy: .public)' took default from preferred '\(preferred, privacy: .public)' — reverting")
-                revertHijack()
-            }
-        } else if isSettled {
+        if isSettled && !isNew {
             // Known device, devices settled — user switch via System Settings
             logger.info("User-initiated switch to '\(newDefault.name, privacy: .public)' — saving as preferred")
             preferredDevice = newDefault.name
             config.writePreferredDevice(newDefault.name)
             settleOnDevice(newDefault)
         } else {
-            // Known device, within settle period — accept without saving preferred
-            logger.info("Devices settling — accepted '\(newDefault.name, privacy: .public)' (preferred stays '\(self.preferredDevice, privacy: .public)')")
-            settleOnDevice(newDefault)
+            // New device OR within settle period — protect preferred
+            let preferred = readPreference()
+            if preferred == newDefault.name || preferred.isEmpty {
+                logger.debug("Preferred device '\(newDefault.name, privacy: .public)' reconnected")
+                settleOnDevice(newDefault)
+            } else {
+                logger.info("Protecting preferred '\(preferred, privacy: .public)' — reverting from '\(newDefault.name, privacy: .public)' (\(isNew ? "new device" : "settle period", privacy: .public))")
+                revertHijack()
+            }
         }
     }
 
