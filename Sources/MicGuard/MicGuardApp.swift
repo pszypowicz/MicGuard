@@ -111,6 +111,13 @@ struct MicGuardApp: App {
         args.contains("--help") || args.contains("-h")
     }
 
+    /// Ask the running daemon to re-read config and broadcast status.
+    private static func notifyDaemon() {
+        DistributedNotificationCenter.default().postNotificationName(
+            MicGuardNotification.requestStatus, object: nil,
+            userInfo: nil, deliverImmediately: true)
+    }
+
     private static func handleCLI(command: String, args: [String], quiet: Bool) {
         switch command {
         case "list":
@@ -173,6 +180,7 @@ struct MicGuardApp: App {
                 fputs("Failed to set input device to '\(name)'\n", stderr)
                 exit(1)
             }
+            notifyDaemon()
         case "enable":
             if wantsHelp(args) {
                 print("Usage: mic-guard enable")
@@ -180,6 +188,7 @@ struct MicGuardApp: App {
                 return
             }
             Config.writeEnabled(true)
+            notifyDaemon()
             if !quiet { print("enabled") }
         case "disable":
             if wantsHelp(args) {
@@ -188,6 +197,7 @@ struct MicGuardApp: App {
                 return
             }
             Config.writeEnabled(false)
+            notifyDaemon()
             if !quiet { print("disabled") }
         case "toggle":
             if wantsHelp(args) {
@@ -197,6 +207,7 @@ struct MicGuardApp: App {
             }
             let current = Config.readEnabled()
             Config.writeEnabled(!current)
+            notifyDaemon()
             if !quiet { print(current ? "disabled" : "enabled") }
         case "status":
             if wantsHelp(args) {
@@ -230,6 +241,7 @@ struct MicGuardApp: App {
                 fputs("Failed to set volume\n", stderr)
                 exit(1)
             }
+            notifyDaemon()
         case "mute":
             if wantsHelp(args) {
                 print("Usage: mic-guard mute")
@@ -261,18 +273,14 @@ struct MicGuardApp: App {
                 _ = AudioDevices.setInputVolume(for: device.id, volume: 0)
                 _ = AudioDevices.setInputMuted(for: device.id, muted: true)
             }
-            // Ask the daemon to re-read hardware state and broadcast to consumers
-            DistributedNotificationCenter.default().postNotificationName(
-                MicGuardNotification.requestStatus, object: nil,
-                userInfo: nil, deliverImmediately: true)
+            notifyDaemon()
         case "ping":
             if wantsHelp(args) {
                 print("Usage: mic-guard ping")
                 print("\nAsk the running daemon to re-broadcast its status.")
                 return
             }
-            DistributedNotificationCenter.default().postNotificationName(
-                MicGuardNotification.requestStatus, object: nil)
+            notifyDaemon()
         case "version", "--version", "-v":
             print("mic-guard \(version)")
         case "help", "--help", "-h":

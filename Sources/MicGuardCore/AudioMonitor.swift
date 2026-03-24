@@ -10,18 +10,14 @@ public final class AudioMonitor {
 
     public var isEnabled: Bool = true {
         didSet {
-            if !suppressConfigSideEffects {
-                config.writeEnabled(isEnabled)
-                debouncedPostStatusChanged()
-            }
+            config.writeEnabled(isEnabled)
+            debouncedPostStatusChanged()
         }
     }
     public var mode: String = "auto" {
         didSet {
-            if !suppressConfigSideEffects {
-                config.writeMode(mode)
-                debouncedPostStatusChanged()
-            }
+            config.writeMode(mode)
+            debouncedPostStatusChanged()
         }
     }
     public var preferredDevice: String = ""
@@ -41,8 +37,6 @@ public final class AudioMonitor {
     public var settleSeconds: TimeInterval = 2.0
 
 
-    private var configWatcherSource: DispatchSourceFileSystemObject?
-    private var suppressConfigSideEffects = false
     private var statusDebounceWork: DispatchWorkItem?
     var preMuteVolume: Int = 100
 
@@ -61,48 +55,19 @@ public final class AudioMonitor {
 
     public func start() {
         logger.info("MicGuard started [pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public)]")
-        suppressConfigSideEffects = true
-        isEnabled = config.readEnabled()
-        mode = config.readMode()
-        suppressConfigSideEffects = false
-        preferredDevice = readPreference()
-        settleSeconds = config.readSettleSeconds()
+        reloadConfig()
         currentDevice = audio.currentInputDevice()?.name ?? ""
 
-        startConfigWatcher()
-
-        // Listen for status requests from external consumers
+        // Listen for status requests from CLI and external consumers.
+        // On request, re-read config (CLI may have written files) then broadcast.
         DistributedNotificationCenter.default().addObserver(
             forName: MicGuardNotification.requestStatus,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
+                self?.reloadConfig()
                 self?.postStatusChanged()
-            }
-        }
-
-        DistributedNotificationCenter.default().addObserver(
-            forName: MicGuardNotification.toggleMute,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.toggleMute()
-            }
-        }
-
-        DistributedNotificationCenter.default().addObserver(
-            forName: MicGuardNotification.setVolume,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            let volumeStr = notification.userInfo?["volume"] as? String
-            Task { @MainActor in
-                guard let self,
-                      let str = volumeStr,
-                      let volume = Int(str) else { return }
-                self.setVolume(volume)
             }
         }
 
@@ -175,57 +140,42 @@ public final class AudioMonitor {
         postStatusChanged()
     }
 
-    private func startConfigWatcher() {
-        config.ensureConfigDir()
-        let fd = open(Config.configDir.path(percentEncoded: false), O_EVTONLY)
-        guard fd >= 0 else {
-            logger.error("Failed to open config directory for watching")
-            return
-        }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
-            eventMask: .write,
-            queue: .main
-        )
-        source.setEventHandler { [weak self] in
-            Task { @MainActor in
-                self?.handleConfigChange()
-            }
-        }
-        source.setCancelHandler {
-            close(fd)
-        }
-        source.resume()
-        configWatcherSource = source
-        logger.info("Watching config directory for changes")
-    }
-
-    private func handleConfigChange() {
+    /// Re-read all config files and update internal state.
+    /// Called on startup, on `requestStatus` notification, and from the popover reload button.
+    public func reloadConfig() {
         var changed = false
 
         let newEnabled = config.readEnabled()
         if isEnabled != newEnabled {
-            suppressConfigSideEffects = true
             isEnabled = newEnabled
-            suppressConfigSideEffects = false
-            logger.info("Config watcher: enabled changed to \(newEnabled, privacy: .public)")
+            logger.info("reloadConfig: enabled changed to \(newEnabled, privacy: .public)")
             changed = true
         }
 
         let newMode = config.readMode()
         if mode != newMode {
-            suppressConfigSideEffects = true
             mode = newMode
-            suppressConfigSideEffects = false
-            logger.info("Config watcher: mode changed to '\(newMode, privacy: .public)'")
+            logger.info("reloadConfig: mode changed to '\(newMode, privacy: .public)'")
             changed = true
         }
 
         let newPreferred = config.readPreferredDevice()
-        if preferredDevice != newPreferred {
+        if newPreferred.isEmpty {
+            // No stored preference — derive from current device
+            let derived = readPreference()
+            if preferredDevice != derived {
+                preferredDevice = derived
+                changed = true
+            }
+        } else if preferredDevice != newPreferred {
             preferredDevice = newPreferred
-            logger.info("Config watcher: preferred device changed to '\(newPreferred, privacy: .public)'")
+            logger.info("reloadConfig: preferred device changed to '\(newPreferred, privacy: .public)'")
+            changed = true
+        }
+
+        let newSettle = config.readSettleSeconds()
+        if settleSeconds != newSettle {
+            settleSeconds = newSettle
             changed = true
         }
 
@@ -452,7 +402,6 @@ public final class AudioMonitor {
             mScope: kAudioDevicePropertyScopeInput,
             mElement: kAudioObjectPropertyElementWildcard
         )
-        let audioRef = self.audio
         let volumeHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
                 guard let self, deviceID == self.volumeListenerDeviceID else { return }
@@ -577,56 +526,6 @@ public final class AudioMonitor {
             logger.info("Mute listener: external hw unmute on '\(deviceName, privacy: .public)', restored vol=\(self.preMuteVolume, privacy: .public) volOk=\(volOk, privacy: .public)")
             debouncedPostStatusChanged()
         }
-    }
-
-    // MARK: - Volume/Mute Control
-
-    public func toggleMute() {
-        guard let device = audio.currentInputDevice() else {
-            logger.error("toggleMute: no current input device")
-            return
-        }
-
-        logger.debug("toggleMute: isMuted=\(self.isMuted, privacy: .public) hwVol=\(self.audio.inputVolume(for: device.id) ?? -1, privacy: .public) hwMute=\(self.audio.isInputMuted(for: device.id).map(String.init) ?? "nil", privacy: .public) preMuteVolume=\(self.preMuteVolume, privacy: .public)")
-
-        if !isMuted {
-            // Mute: try hardware, fall back to software-only
-            let currentVolume = audio.inputVolume(for: device.id) ?? 100
-            preMuteVolume = max(currentVolume, 1)
-            let volOk = audio.setInputVolume(for: device.id, volume: 0)
-            let muteOk = audio.setInputMuted(for: device.id, muted: true)
-            isMuted = true
-            inputVolume = 0
-            logger.info("toggleMute: muted (saved volume \(self.preMuteVolume, privacy: .public), volOk=\(volOk, privacy: .public), muteOk=\(muteOk, privacy: .public))")
-        } else {
-            // Unmute
-            let volOk = audio.setInputVolume(for: device.id, volume: preMuteVolume)
-            let muteOk = audio.setInputMuted(for: device.id, muted: false)
-            isMuted = false
-            inputVolume = audio.inputVolume(for: device.id) ?? preMuteVolume
-            logger.info("toggleMute: unmuted (restored volume \(self.preMuteVolume, privacy: .public), volOk=\(volOk, privacy: .public), muteOk=\(muteOk, privacy: .public))")
-        }
-        debouncedPostStatusChanged()
-    }
-
-    public func setVolume(_ volume: Int) {
-        guard let device = audio.currentInputDevice() else {
-            logger.error("setVolume: no current input device")
-            return
-        }
-        let clamped = min(max(volume, 0), 100)
-        if audio.setInputVolume(for: device.id, volume: clamped) {
-            logger.info("setVolume: set to \(clamped, privacy: .public)")
-        } else {
-            logger.error("setVolume: failed to set volume to \(clamped, privacy: .public)")
-        }
-        // If setting volume > 0, clear software mute and native mute
-        if clamped > 0 { isMuted = false }
-        if clamped > 0, audio.isInputMuted(for: device.id) == true {
-            _ = audio.setInputMuted(for: device.id, muted: false)
-        }
-        inputVolume = audio.inputVolume(for: device.id) ?? 0
-        debouncedPostStatusChanged()
     }
 
     // MARK: - Status Notifications
