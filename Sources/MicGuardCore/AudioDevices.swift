@@ -1,8 +1,8 @@
 import CoreAudio
 import Foundation
 
-enum AudioDevices {
-    static func listInputDevices() -> [(id: AudioDeviceID, name: String)] {
+public enum AudioDevices {
+    public static func listInputDevices() -> [(id: AudioDeviceID, name: String)] {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -25,7 +25,7 @@ enum AudioDevices {
         }
     }
 
-    static func currentInputDevice() -> (id: AudioDeviceID, name: String)? {
+    public static func currentInputDevice() -> (id: AudioDeviceID, name: String)? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -39,14 +39,14 @@ enum AudioDevices {
         return (id: deviceID, name: name)
     }
 
-    static func setInputDevice(name: String) -> Bool {
+    public static func setInputDevice(name: String) -> Bool {
         guard let device = listInputDevices().first(where: { $0.name == name }) else {
             return false
         }
         return setInputDevice(id: device.id)
     }
 
-    static func setInputDevice(id: AudioDeviceID) -> Bool {
+    public static func setInputDevice(id: AudioDeviceID) -> Bool {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -59,7 +59,7 @@ enum AudioDevices {
         ) == noErr
     }
 
-    static func setInputVolume(for deviceID: AudioDeviceID, volume: Int) -> Bool {
+    public static func setInputVolume(for deviceID: AudioDeviceID, volume: Int) -> Bool {
         let scalar = Float32(min(max(volume, 0), 100)) / 100.0
         for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {
             var address = AudioObjectPropertyAddress(
@@ -78,7 +78,7 @@ enum AudioDevices {
         return false
     }
 
-    static func isInputMuted(for deviceID: AudioDeviceID) -> Bool? {
+    public static func isInputMuted(for deviceID: AudioDeviceID) -> Bool? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
             mScope: kAudioDevicePropertyScopeInput,
@@ -92,7 +92,7 @@ enum AudioDevices {
         return muted != 0
     }
 
-    static func setInputMuted(for deviceID: AudioDeviceID, muted: Bool) -> Bool {
+    public static func setInputMuted(for deviceID: AudioDeviceID, muted: Bool) -> Bool {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyMute,
             mScope: kAudioDevicePropertyScopeInput,
@@ -106,7 +106,7 @@ enum AudioDevices {
         ) == noErr
     }
 
-    static func inputVolume(for deviceID: AudioDeviceID) -> Int? {
+    public static func inputVolume(for deviceID: AudioDeviceID) -> Int? {
         // Try master channel (element 0) first, then fall back to first channel (element 1)
         for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {
             var address = AudioObjectPropertyAddress(
@@ -124,7 +124,7 @@ enum AudioDevices {
         return nil
     }
 
-    static func transportType(for deviceID: AudioDeviceID) -> String {
+    public static func transportType(for deviceID: AudioDeviceID) -> String {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyTransportType,
             mScope: kAudioObjectPropertyScopeGlobal,

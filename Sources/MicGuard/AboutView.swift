@@ -1,4 +1,13 @@
+import MicGuardCore
 import SwiftUI
+
+func formatVersion(base: String) -> String {
+    #if DEBUG
+    return "\(base) (\(BuildMetadata.gitHash) \(BuildMetadata.buildDate))"
+    #else
+    return "\(base) (\(BuildMetadata.gitHash))"
+    #endif
+}
 
 private let repoURL = URL(string: "https://github.com/pszypowicz/MicGuard")!
 private let sponsorURL = URL(string: "https://github.com/sponsors/pszypowicz")!
@@ -6,7 +15,7 @@ private let sponsorURL = URL(string: "https://github.com/sponsors/pszypowicz")!
 struct AboutView: View {
     private let version: String = {
         let base = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
-        return Config.formatVersion(base: base)
+        return formatVersion(base: base)
     }()
 
     var body: some View {

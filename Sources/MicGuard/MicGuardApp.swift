@@ -1,3 +1,4 @@
+import MicGuardCore
 import os
 import SwiftUI
 
@@ -85,6 +86,10 @@ struct MicGuardApp: App {
             Image(nsImage: MenuBarIcon.image(enabled: AudioMonitor.shared.isEnabled))
         }
         .menuBarExtraStyle(.menu)
+
+        Settings {
+            SettingsView()
+        }
     }
 
     private static let version: String = {
@@ -97,7 +102,7 @@ struct MicGuardApp: App {
             .deletingLastPathComponent()  // MicGuard.app/
         let bundle = Bundle(url: appURL) ?? Bundle.main
         let base = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
-        return Config.formatVersion(base: base)
+        return formatVersion(base: base)
     }()
 
     private static func wantsHelp(_ args: [String]) -> Bool {
@@ -140,7 +145,7 @@ struct MicGuardApp: App {
         case "set":
             if wantsHelp(args) {
                 print("Usage: mic-guard set <device name>")
-                print("\nSet the default input device by name.")
+                print("\nSet the preferred device and switch to manual mode.")
                 return
             }
             let name = args.joined(separator: " ")
@@ -149,6 +154,7 @@ struct MicGuardApp: App {
                 exit(1)
             }
             Config.writePreferredDevice(name)
+            Config.writeMode("manual")
             if !AudioDevices.setInputDevice(name: name) {
                 fputs("Failed to set input device to '\(name)'\n", stderr)
                 exit(1)
@@ -176,7 +182,12 @@ struct MicGuardApp: App {
                 return
             }
             let enabled = Config.readEnabled()
-            print(enabled ? "enabled" : "disabled")
+            let mode = Config.readMode()
+            if enabled {
+                print("enabled (\(mode))")
+            } else {
+                print("disabled")
+            }
         case "volume":
             if wantsHelp(args) {
                 print("Usage: mic-guard volume <0-100>")
@@ -222,12 +233,12 @@ struct MicGuardApp: App {
             print("Commands:")
             print("  list [--output text|json]  List all input devices")
             print("  current    Print the current default input device")
-            print("  set <name> Set the default input device by name")
+            print("  set <name> Set the preferred device (switches to manual mode)")
             print("  volume <n> Set input volume (0-100)")
             print("  mute       Toggle mute on the current input device")
             print("  enable     Enable MicGuard")
             print("  disable    Disable MicGuard")
-            print("  status     Print whether MicGuard is enabled or disabled")
+            print("  status     Print status (enabled/disabled and mode)")
             print("  ping       Ask the running daemon to re-broadcast its status")
             print("  version    Print version")
             print("  help       Show this help")
