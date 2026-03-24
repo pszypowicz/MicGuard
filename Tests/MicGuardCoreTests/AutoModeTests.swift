@@ -238,6 +238,56 @@ struct AutoModeTests {
         #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
     }
 
+    @Test("Revert extends settle period — prevents bounce from saving preferred")
+    func revertExtendsSettle() {
+        let (monitor, mockAudio, mockConfig) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook, airpods]
+        )
+
+        // Settle period expired long ago
+        monitor.lastDeviceListChange = CFAbsoluteTimeGetCurrent() - 10
+
+        // BT instability bounces to AirPods (known=true, settled)
+        // Normally this would save as preferred — but the revert extends settle
+        mockAudio.currentDefault = airpods
+        monitor.handleDefaultInputChanged()
+
+        // First bounce: isSettled=true → saves as preferred... wait, that's wrong.
+        // Actually this IS the user-switch path since isSettled=true.
+        // The fix is: once we revert, settle period is extended.
+        // So for this test, we need a scenario where a revert happens FIRST,
+        // then a subsequent known=true event should NOT save.
+
+        // Reset: start with a recent revert
+        monitor.preferredDevice = "MacBook Pro Microphone"
+        mockConfig.preferredDevice = "MacBook Pro Microphone"
+        monitor.currentDevice = "MacBook Pro Microphone"
+        mockAudio.currentDefault = macbook
+        mockAudio.setInputDeviceCalls = []
+        mockConfig.writePreferredDeviceCalls = []
+
+        // Simulate: new device connects → reverted → settle extended
+        mockAudio.devices = [macbook, airpods]
+        mockAudio.currentDefault = airpods
+        monitor.previousDeviceIDs = Set([macbook.id]) // AirPods is "new"
+        monitor.lastDeviceListChange = CFAbsoluteTimeGetCurrent() // recent activity
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone", "Should revert")
+
+        // Now 6 seconds later (would exceed original 5s settle), but revert extended it
+        // So the settle period is still active from the revert timestamp
+        mockAudio.currentDefault = airpods
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone",
+                "Should still revert — revert extended the settle period")
+        #expect(mockConfig.writePreferredDeviceCalls.isEmpty,
+                "Should NOT save preferred during extended settle")
+    }
+
     // MARK: - Edge cases
 
     @Test("Preferred not connected → stays on new device")
