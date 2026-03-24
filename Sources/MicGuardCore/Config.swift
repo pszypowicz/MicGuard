@@ -67,7 +67,7 @@ public enum Config {
         setFilePermissions(modeFile)
     }
 
-    public static let defaultSettleSeconds: TimeInterval = 5.0
+    public static let defaultSettleSeconds: TimeInterval = 2.0
 
     public static func readSettleSeconds() -> TimeInterval {
         guard let data = try? String(contentsOf: settleFile, encoding: .utf8),
