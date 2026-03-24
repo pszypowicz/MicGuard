@@ -44,7 +44,7 @@ public final class AudioMonitor {
     private var configWatcherSource: DispatchSourceFileSystemObject?
     private var suppressConfigSideEffects = false
     private var statusDebounceWork: DispatchWorkItem?
-    private var preMuteVolume: Int = 100
+    var preMuteVolume: Int = 100
 
     let audio: any AudioDeviceProviding
     let config: any ConfigProviding
@@ -431,12 +431,16 @@ public final class AudioMonitor {
     private func registerVolumeListener(for deviceID: AudioDeviceID, name deviceName: String) {
         unregisterVolumeListener()
 
-        // Check if device supports volume (use element 0 — wildcard isn't valid for HasProperty)
+        // Check if device supports volume — try main element first, fall back to channel 1
+        // (AirPods and some BT devices only expose volume on element 1).
         var checkAddress = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyVolumeScalar,
             mScope: kAudioDevicePropertyScopeInput,
             mElement: kAudioObjectPropertyElementMain
         )
+        if !AudioObjectHasProperty(deviceID, &checkAddress) {
+            checkAddress.mElement = 1
+        }
         guard AudioObjectHasProperty(deviceID, &checkAddress) else {
             logger.debug("'\(deviceName, privacy: .public)' (\(deviceID, privacy: .public)) does not support volume — skipping listener")
             return
@@ -452,15 +456,7 @@ public final class AudioMonitor {
         let volumeHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
                 guard let self, deviceID == self.volumeListenerDeviceID else { return }
-                if let vol = audioRef.inputVolume(for: deviceID), vol != self.inputVolume {
-                    if self.isMuted {
-                        logger.debug("Volume listener: ignoring vol=\(vol, privacy: .public)% (software muted) on '\(deviceName, privacy: .public)'")
-                        return
-                    }
-                    logger.debug("Volume listener: vol=\(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
-                    self.inputVolume = vol
-                    self.debouncedPostStatusChanged()
-                }
+                self.handleExternalVolumeChange(deviceID: deviceID, deviceName: deviceName)
             }
         }
         self.volumeListenerBlock = volumeHandler
@@ -490,15 +486,7 @@ public final class AudioMonitor {
             let muteHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 Task { @MainActor in
                     guard let self, deviceID == self.muteListenerDeviceID else { return }
-                    let vol = audioRef.inputVolume(for: deviceID) ?? self.inputVolume
-                    guard vol != self.inputVolume else { return }
-                    if self.isMuted {
-                        logger.debug("Mute listener: ignoring vol=\(vol, privacy: .public)% (software muted) on '\(deviceName, privacy: .public)'")
-                        return
-                    }
-                    self.inputVolume = vol
-                    logger.debug("Mute listener: vol=\(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
-                    self.debouncedPostStatusChanged()
+                    self.handleExternalMuteChange(deviceID: deviceID, deviceName: deviceName)
                 }
             }
             self.muteListenerBlock = muteHandler
@@ -540,6 +528,54 @@ public final class AudioMonitor {
             muteListenerDeviceID = nil
             muteListenerBlock = nil
             logger.debug("Mute listener unregistered from '\(name, privacy: .public)' (\(deviceID, privacy: .public))")
+        }
+    }
+
+    // MARK: - External Change Handling
+
+    /// Called when CoreAudio reports a volume change on the current input device.
+    func handleExternalVolumeChange(deviceID: AudioDeviceID, deviceName: String) {
+        guard let vol = audio.inputVolume(for: deviceID), vol != inputVolume else { return }
+        if isMuted && vol > 0 {
+            // External unmute (e.g. CLI set volume > 0 while we thought muted)
+            logger.info("Volume listener: external unmute detected vol=\(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
+            isMuted = false
+            inputVolume = vol
+            debouncedPostStatusChanged()
+        } else if isMuted {
+            logger.debug("Volume listener: ignoring vol=\(vol, privacy: .public)% (software muted) on '\(deviceName, privacy: .public)'")
+        } else if vol == 0 {
+            // External mute (e.g. CLI set volume to 0)
+            logger.info("Volume listener: external mute detected on '\(deviceName, privacy: .public)'")
+            preMuteVolume = max(inputVolume, 1)
+            isMuted = true
+            inputVolume = 0
+            debouncedPostStatusChanged()
+        } else {
+            logger.debug("Volume listener: vol=\(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
+            inputVolume = vol
+            debouncedPostStatusChanged()
+        }
+    }
+
+    /// Called when CoreAudio reports a mute-flag change on the current input device.
+    func handleExternalMuteChange(deviceID: AudioDeviceID, deviceName: String) {
+        let hwMuted = audio.isInputMuted(for: deviceID) == true
+        if hwMuted && !isMuted {
+            // External mute via hw flag (e.g. CLI or system UI)
+            let currentVol = audio.inputVolume(for: deviceID) ?? inputVolume
+            preMuteVolume = max(currentVol, max(inputVolume, 1))
+            isMuted = true
+            inputVolume = 0
+            logger.info("Mute listener: external hw mute on '\(deviceName, privacy: .public)', saved vol=\(self.preMuteVolume, privacy: .public)")
+            debouncedPostStatusChanged()
+        } else if !hwMuted && isMuted {
+            // External unmute via hw flag — restore pre-mute volume
+            let volOk = audio.setInputVolume(for: deviceID, volume: preMuteVolume)
+            isMuted = false
+            inputVolume = audio.inputVolume(for: deviceID) ?? preMuteVolume
+            logger.info("Mute listener: external hw unmute on '\(deviceName, privacy: .public)', restored vol=\(self.preMuteVolume, privacy: .public) volOk=\(volOk, privacy: .public)")
+            debouncedPostStatusChanged()
         }
     }
 
