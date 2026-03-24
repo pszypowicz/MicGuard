@@ -4,7 +4,7 @@ import SwiftUI
 
 private func postTerminationNotification() {
     DistributedNotificationCenter.default().postNotificationName(
-        NSNotification.Name("com.pszypowicz.MicGuard.appTerminated"),
+        MicGuardNotification.appTerminated,
         object: nil
     )
 }
@@ -109,6 +109,10 @@ struct MicGuardApp: App {
         args.contains("--help") || args.contains("-h")
     }
 
+    private static func isQuiet(_ args: [String]) -> Bool {
+        args.contains("--quiet") || args.contains("-q")
+    }
+
     private static func handleCLI(command: String, args: [String]) {
         switch command {
         case "list":
@@ -121,8 +125,20 @@ struct MicGuardApp: App {
             let devices = AudioDevices.listInputDevices()
             if outputFormat == "json" {
                 let currentDevice = AudioDevices.currentInputDevice()
+                let preferred = Config.readPreferredDevice()
                 let entries: [[String: Any]] = devices.map { device in
-                    ["name": device.name, "current": device.id == currentDevice?.id]
+                    var entry: [String: Any] = [
+                        "name": device.name,
+                        "current": device.id == currentDevice?.id,
+                        "preferred": device.name == preferred,
+                    ]
+                    if let vol = AudioDevices.inputVolume(for: device.id) {
+                        entry["volume"] = vol
+                    }
+                    if let muted = AudioDevices.isInputMuted(for: device.id) {
+                        entry["muted"] = muted
+                    }
+                    return entry
                 }
                 if let data = try? JSONSerialization.data(withJSONObject: entries, options: [.prettyPrinted, .sortedKeys]),
                    let json = String(data: data, encoding: .utf8) {
@@ -161,20 +177,29 @@ struct MicGuardApp: App {
             }
         case "enable":
             if wantsHelp(args) {
-                print("Usage: mic-guard enable")
+                print("Usage: mic-guard enable [--quiet|-q]")
                 print("\nEnable MicGuard.")
                 return
             }
             Config.writeEnabled(true)
-            print("enabled")
+            if !Self.isQuiet(args) { print("enabled") }
         case "disable":
             if wantsHelp(args) {
-                print("Usage: mic-guard disable")
+                print("Usage: mic-guard disable [--quiet|-q]")
                 print("\nDisable MicGuard.")
                 return
             }
             Config.writeEnabled(false)
-            print("disabled")
+            if !Self.isQuiet(args) { print("disabled") }
+        case "toggle":
+            if wantsHelp(args) {
+                print("Usage: mic-guard toggle [--quiet|-q]")
+                print("\nToggle MicGuard on/off.")
+                return
+            }
+            let current = Config.readEnabled()
+            Config.writeEnabled(!current)
+            if !Self.isQuiet(args) { print(current ? "disabled" : "enabled") }
         case "status":
             if wantsHelp(args) {
                 print("Usage: mic-guard status")
@@ -214,7 +239,7 @@ struct MicGuardApp: App {
                 return
             }
             DistributedNotificationCenter.default().postNotificationName(
-                AudioMonitor.toggleMuteNotification, object: nil)
+                MicGuardNotification.toggleMute, object: nil)
         case "ping":
             if wantsHelp(args) {
                 print("Usage: mic-guard ping")
@@ -222,7 +247,7 @@ struct MicGuardApp: App {
                 return
             }
             DistributedNotificationCenter.default().postNotificationName(
-                AudioMonitor.requestStatusNotification, object: nil)
+                MicGuardNotification.requestStatus, object: nil)
         case "version", "--version", "-v":
             print("mic-guard \(version)")
         case "help", "--help", "-h":
@@ -236,8 +261,9 @@ struct MicGuardApp: App {
             print("  set <name> Set the preferred device (switches to manual mode)")
             print("  volume <n> Set input volume (0-100)")
             print("  mute       Toggle mute on the current input device")
-            print("  enable     Enable MicGuard")
-            print("  disable    Disable MicGuard")
+            print("  enable [-q]  Enable MicGuard")
+            print("  disable [-q] Disable MicGuard")
+            print("  toggle [-q]  Toggle MicGuard on/off")
             print("  status     Print status (enabled/disabled and mode)")
             print("  ping       Ask the running daemon to re-broadcast its status")
             print("  version    Print version")
