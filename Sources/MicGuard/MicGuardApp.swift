@@ -236,8 +236,35 @@ struct MicGuardApp: App {
                 print("\nToggle mute on the current input device.")
                 return
             }
+            guard let device = AudioDevices.currentInputDevice() else {
+                fputs("No input device found\n", stderr)
+                exit(1)
+            }
+            // Determine current mute state from hardware.  The daemon tracks
+            // isMuted in software, but the CLI is short-lived so we read the
+            // hardware directly: volume == 0 OR hw-mute flag set → muted.
+            let hwMuted = AudioDevices.isInputMuted(for: device.id) == true
+            let hwVol = AudioDevices.inputVolume(for: device.id) ?? 0
+            let currentlyMuted = hwMuted || hwVol == 0
+
+            if currentlyMuted {
+                // Unmute: clear hw mute and set a fallback volume.  If the daemon
+                // is running, its mute listener will detect the hw flag change and
+                // restore the real pre-mute volume, overriding this fallback.
+                _ = AudioDevices.setInputMuted(for: device.id, muted: false)
+                if hwVol == 0 {
+                    _ = AudioDevices.setInputVolume(for: device.id, volume: 50)
+                }
+            } else {
+                // Mute: zero volume and set hw mute flag.  The daemon's volume
+                // listener will detect vol → 0 and save the pre-mute volume.
+                _ = AudioDevices.setInputVolume(for: device.id, volume: 0)
+                _ = AudioDevices.setInputMuted(for: device.id, muted: true)
+            }
+            // Ask the daemon to re-read hardware state and broadcast to consumers
             DistributedNotificationCenter.default().postNotificationName(
-                MicGuardNotification.toggleMute, object: nil)
+                MicGuardNotification.requestStatus, object: nil,
+                userInfo: nil, deliverImmediately: true)
         case "ping":
             if wantsHelp(args) {
                 print("Usage: mic-guard ping")
