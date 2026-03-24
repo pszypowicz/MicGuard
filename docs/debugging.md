@@ -54,6 +54,19 @@ MicGuard uses three log levels:
 
 Debug messages are only captured when a consumer is attached (e.g. `log stream --level debug` or Console.app with debug enabled). This means high-frequency events like volume slider changes have near-zero overhead during normal operation.
 
+## Duplicate CoreAudio callbacks
+
+When a Bluetooth device connects or disconnects, CoreAudio fires `DEVICE_LIST_CHANGED` and `DEFAULT_INPUT_CHANGED` notifications multiple times — typically two or three times per event. This is normal macOS behavior (CoreAudio notifies once per internal phase of the Bluetooth negotiation) and not a MicGuard bug.
+
+You will see duplicate log lines like:
+
+```
+DEVICE_LIST_CHANGED: added=["AirPods Pro 3 (Przemek)"] removed=[]
+DEVICE_LIST_CHANGED: added=["AirPods Pro 3 (Przemek)"] removed=[]
+```
+
+The handlers are idempotent — the second call is harmless since the device was already added to the tracked set on the first call.
+
 ## Running from the terminal
 
 To run MicGuard directly from a terminal (useful during development):
@@ -124,12 +137,12 @@ log stream --predicate 'subsystem == "com.pszypowicz.MicGuard"' --level debug
 mic-guard mute
 ```
 
-You should see three log entries in sequence:
+You should see log entries in sequence:
 
 ```
 toggleMute: muted (saved volume 100)
-Volume changed to 0%
-Posting status notification: enabled=1 device=… volume=0 muted=1
+Volume changed to 0% on 'MacBook Pro Microphone'
+Posting status notification: {"enabled":true,"mode":"auto","devices":[...]}
 ```
 
 ### Reset configuration

@@ -49,3 +49,5 @@ All config lives in `~/.config/mic-guard/`:
 |------|---------|
 | `preferred-mic` | Exact name of your preferred input device |
 | `enabled` | `1` or `0` — whether MicGuard is active |
+| `mode` | `auto` or `manual` — device enforcement strategy (default: `auto`) |
+| `settle-seconds` | Seconds to wait before accepting a device switch as user-initiated (1–30, default: `2`) |
