@@ -18,6 +18,7 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 | `com.pszypowicz.MicGuard.toggleMute` | Inbound | Toggle mute on the current input device |
 | `com.pszypowicz.MicGuard.setVolume` | Inbound | Set input volume (expects `userInfo["volume"]` as string 0-100) |
 
+
 ## Payload schema
 
 ### `statusChanged` userInfo

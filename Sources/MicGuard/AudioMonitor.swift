@@ -346,22 +346,39 @@ final class AudioMonitor {
     }
 
     private func handleDeviceChange(trigger: String) {
-        let oldDevice = currentDevice
+        let newDevices = AudioDevices.listInputDevices()
         let newInput = AudioDevices.currentInputDevice()
         let newName = newInput?.name ?? ""
-        let transport = newInput.map { AudioDevices.transportType(for: $0.id) } ?? "none"
 
+        guard newName != currentDevice || newDevices.map(\.id) != inputDevices.map(\.id) else {
+            return
+        }
+
+        let oldDevice = currentDevice
         if newName != oldDevice {
+            let transport = newInput.map { AudioDevices.transportType(for: $0.id) } ?? "none"
             logger.debug("[\(trigger, privacy: .public)] \(oldDevice, privacy: .public) → \(newName, privacy: .public) (\(newInput?.id ?? 0, privacy: .public), \(transport, privacy: .public))")
         }
 
-        inputDevices = AudioDevices.listInputDevices()
+        let oldDevices = inputDevices
+        inputDevices = newDevices
         currentDevice = newName
         if let device = newInput {
             inputVolume = AudioDevices.inputVolume(for: device.id) ?? 0
         }
 
-        if enforce() {
+        // device-list-changed: enforce if preferred device is connected but not active
+        // default-device-changed: always enforce (macOS switched to wrong device)
+        let shouldEnforce: Bool
+        if trigger == "device-list-changed" {
+            let preferred = readPreference()
+            let nowConnected = newDevices.contains { $0.name == preferred }
+            shouldEnforce = nowConnected && newName != preferred
+        } else {
+            shouldEnforce = true
+        }
+
+        if shouldEnforce, enforce() {
             return  // changed device — another callback is coming, don't post yet
         }
 

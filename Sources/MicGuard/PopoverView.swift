@@ -2,17 +2,18 @@ import os
 import ServiceManagement
 import SwiftUI
 
+private struct DisplayDevice: Equatable {
+    let name: String
+    let available: Bool
+}
+
 struct PopoverView: View {
     private var monitor = AudioMonitor.shared
     @State private var isLoginEnabled = SMAppService.mainApp.status == .enabled
+    @State private var displayDevices: [DisplayDevice]
 
-    private var displayDevices: [(name: String, available: Bool)] {
-        var devices = monitor.inputDevices.map { (name: $0.name, available: true) }
-        if !monitor.preferredDevice.isEmpty,
-           !devices.contains(where: { $0.name == monitor.preferredDevice }) {
-            devices.append((name: monitor.preferredDevice, available: false))
-        }
-        return devices.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    init() {
+        _displayDevices = State(initialValue: Self.buildDeviceList())
     }
 
     var body: some View {
@@ -21,16 +22,15 @@ struct PopoverView: View {
             set: { monitor.setPreferredDevice(name: $0) }
         )) {
             ForEach(displayDevices, id: \.name) { device in
-                if device.available {
-                    Text(device.name).tag(device.name)
-                } else {
-                    Text("\(device.name) (offline)")
-                        .foregroundStyle(.secondary)
-                        .tag(device.name)
-                }
+                Text(device.available ? device.name : "\(device.name) (offline)")
+                    .foregroundStyle(device.available ? .primary : .secondary)
+                    .tag(device.name)
             }
         }
         .pickerStyle(.inline)
+        .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in
+            displayDevices = Self.buildDeviceList()
+        }
 
         Section("Configuration") {
             Toggle("Enabled", isOn: Binding(
@@ -50,6 +50,18 @@ struct PopoverView: View {
             Button("About MicGuard") { AboutView.showWindow() }
             Button("Quit MicGuard") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
+        }
+    }
+
+    private static func buildDeviceList() -> [DisplayDevice] {
+        let monitor = AudioMonitor.shared
+        var devices = monitor.inputDevices.map { DisplayDevice(name: $0.name, available: true) }
+        if !monitor.preferredDevice.isEmpty,
+           !devices.contains(where: { $0.name == monitor.preferredDevice }) {
+            devices.append(DisplayDevice(name: monitor.preferredDevice, available: false))
+        }
+        return devices.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
 
