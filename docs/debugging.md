@@ -157,4 +157,4 @@ Then relaunch MicGuard. It will re-create the config directory and initialize wi
 
 ### Lock file
 
-MicGuard uses a lock file (`~/.config/mic-guard/lock`) to enforce single-instance. If MicGuard exits abnormally, the lock file is automatically cleaned up on the next launch — no manual removal is needed.
+MicGuard uses a lock file (`~/.config/mic-guard/lock`) to enforce single-instance. The lock is held via `fcntl`, which the kernel releases automatically when the process exits — even after abnormal termination. The file itself remains on disk but does not block the next launch. No manual removal is needed.

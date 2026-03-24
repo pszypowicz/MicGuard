@@ -15,6 +15,12 @@ MicGuard doubles as a CLI tool. The `mic-guard` binary is symlinked to `/usr/loc
 | `0` | Success |
 | `1` | Error (invalid arguments, device not found, etc.) |
 
+## Global flags
+
+| Flag | Description |
+|------|-------------|
+| `-q`, `--quiet` | Suppress confirmation output |
+
 ## Commands
 
 ### `mic-guard list`
@@ -98,7 +104,6 @@ Enable MicGuard. It will revert the default input device whenever it changes awa
 ```bash
 $ mic-guard enable
 enabled
-$ mic-guard enable --quiet   # or -q — no output, useful for scripting
 ```
 
 ### `mic-guard disable`
@@ -108,7 +113,6 @@ Disable MicGuard. The default input device can change freely.
 ```bash
 $ mic-guard disable
 disabled
-$ mic-guard disable -q   # no output
 ```
 
 ### `mic-guard toggle`
@@ -120,16 +124,17 @@ $ mic-guard toggle
 disabled
 $ mic-guard toggle
 enabled
-$ mic-guard toggle -q   # no output
 ```
 
 ### `mic-guard status`
 
-Print whether MicGuard is enabled or disabled, and the current mode.
+Print whether MicGuard is enabled or disabled. When enabled, the current mode is shown in parentheses.
 
 ```bash
 $ mic-guard status
 enabled (auto)
+$ mic-guard status   # when disabled
+disabled
 ```
 
 ### `mic-guard ping`
