@@ -37,12 +37,8 @@ public final class AudioMonitor {
 
     var previousDeviceIDs: Set<AudioDeviceID> = []
     var lastDeviceListChange: CFAbsoluteTime = 0
-    public var settleSeconds: TimeInterval = 5.0
+    public var settleSeconds: TimeInterval = 2.0
 
-    public static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
-    public static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
-    public static let toggleMuteNotification = NSNotification.Name("com.pszypowicz.MicGuard.toggleMute")
-    public static let setVolumeNotification = NSNotification.Name("com.pszypowicz.MicGuard.setVolume")
 
     private var configWatcherSource: DispatchSourceFileSystemObject?
     private var suppressConfigSideEffects = false
@@ -76,7 +72,7 @@ public final class AudioMonitor {
 
         // Listen for status requests from external consumers
         DistributedNotificationCenter.default().addObserver(
-            forName: Self.requestStatusNotification,
+            forName: MicGuardNotification.requestStatus,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -86,7 +82,7 @@ public final class AudioMonitor {
         }
 
         DistributedNotificationCenter.default().addObserver(
-            forName: Self.toggleMuteNotification,
+            forName: MicGuardNotification.toggleMute,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -96,7 +92,7 @@ public final class AudioMonitor {
         }
 
         DistributedNotificationCenter.default().addObserver(
-            forName: Self.setVolumeNotification,
+            forName: MicGuardNotification.setVolume,
             object: nil,
             queue: .main
         ) { [weak self] notification in
@@ -295,11 +291,6 @@ public final class AudioMonitor {
         }
 
         debouncedPostStatusChanged()
-
-        DistributedNotificationCenter.default().postNotificationName(
-            NSNotification.Name("com.pszypowicz.MicGuard.devicesChanged"),
-            object: nil
-        )
     }
 
     func handleDefaultInputChanged() {
@@ -352,7 +343,8 @@ public final class AudioMonitor {
                 logger.debug("Preferred device '\(newDefault.name, privacy: .public)' reconnected")
                 settleOnDevice(newDefault)
             } else {
-                logger.info("Protecting preferred '\(preferred, privacy: .public)' — reverting from '\(newDefault.name, privacy: .public)' (\(isNew ? "new device" : "settle period", privacy: .public))")
+                let reason = isNew ? "new device" : "settle: \(String(format: "%.1f", settleSeconds - (CFAbsoluteTimeGetCurrent() - lastDeviceListChange)))s left"
+                logger.info("Protecting preferred '\(preferred, privacy: .public)' — reverting from '\(newDefault.name, privacy: .public)' (\(reason, privacy: .public))")
                 revertHijack()
                 // Extend settle period — a revert means devices aren't stable yet
                 lastDeviceListChange = CFAbsoluteTimeGetCurrent()
@@ -447,7 +439,7 @@ public final class AudioMonitor {
         let audioRef = self.audio
         let volumeHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, deviceID == self.volumeListenerDeviceID else { return }
                 if let vol = audioRef.inputVolume(for: deviceID), vol != self.inputVolume {
                     logger.debug("Volume changed to \(vol, privacy: .public)% on '\(deviceName, privacy: .public)'")
                     self.inputVolume = vol
@@ -481,7 +473,7 @@ public final class AudioMonitor {
         if AudioObjectHasProperty(deviceID, &muteCheckAddress) {
             let muteHandler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 Task { @MainActor in
-                    guard let self else { return }
+                    guard let self, deviceID == self.muteListenerDeviceID else { return }
                     let vol = audioRef.inputVolume(for: deviceID) ?? self.inputVolume
                     guard vol != self.inputVolume else { return }
                     self.inputVolume = vol
@@ -552,6 +544,8 @@ public final class AudioMonitor {
             _ = audio.setInputMuted(for: device.id, muted: false)
             logger.info("toggleMute: unmuted (restored volume \(self.preMuteVolume, privacy: .public))")
         }
+        inputVolume = audio.inputVolume(for: device.id) ?? 0
+        debouncedPostStatusChanged()
     }
 
     public func setVolume(_ volume: Int) {
@@ -569,6 +563,8 @@ public final class AudioMonitor {
         if clamped > 0, audio.isInputMuted(for: device.id) == true {
             _ = audio.setInputMuted(for: device.id, muted: false)
         }
+        inputVolume = audio.inputVolume(for: device.id) ?? 0
+        debouncedPostStatusChanged()
     }
 
     // MARK: - Status Notifications
@@ -636,7 +632,7 @@ public final class AudioMonitor {
         let info: [String: String] = ["info": jsonString]
         logger.debug("Posting status notification: \(jsonString, privacy: .public)")
         DistributedNotificationCenter.default().postNotificationName(
-            Self.statusChangedNotification,
+            MicGuardNotification.statusChanged,
             object: nil,
             userInfo: info,
             deliverImmediately: true
