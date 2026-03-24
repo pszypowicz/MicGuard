@@ -36,9 +36,9 @@ public final class AudioMonitor {
     private var muteListenerBlock: AudioObjectPropertyListenerBlock?
 
     var previousDeviceIDs: Set<AudioDeviceID> = []
-    var pendingBTHijack = false
-    var hijackCorrelationWork: DispatchWorkItem?
-    var revertingToPreferred = false
+    var revertedFromDeviceID: AudioDeviceID?
+    var revertTimestamp: CFAbsoluteTime = 0
+    var recentDeviceActivity: [AudioDeviceID: CFAbsoluteTime] = [:]
 
     public static let statusChangedNotification = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
     public static let requestStatusNotification = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
@@ -64,6 +64,7 @@ public final class AudioMonitor {
     }
 
     public func start() {
+        logger.info("MicGuard started [pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public)]")
         suppressConfigSideEffects = true
         isEnabled = config.readEnabled()
         mode = config.readMode()
@@ -115,11 +116,14 @@ public final class AudioMonitor {
             mElement: kAudioObjectPropertyElementMain
         )
 
+        let audioRef = self.audio
         let status = AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject),
             &address,
             DispatchQueue.main
         ) { [weak self] _, _ in
+            let device = audioRef.currentInputDevice()
+            logger.debug("[CoreAudio] DEFAULT_INPUT_CHANGED → '\(device?.name ?? "nil", privacy: .public)' [id=\(device?.id ?? 0, privacy: .public)]")
             Task { @MainActor in
                 self?.handleDefaultInputChanged()
             }
@@ -142,6 +146,7 @@ public final class AudioMonitor {
             &devicesAddress,
             DispatchQueue.main
         ) { [weak self] _, _ in
+            logger.debug("[CoreAudio] DEVICE_LIST_CHANGED")
             Task { @MainActor in
                 self?.handleDeviceListChanged()
             }
@@ -254,59 +259,44 @@ public final class AudioMonitor {
         mode = newMode
     }
 
-    // MARK: - BT Hijack Detection
+    // MARK: - Device Change Detection
 
     func handleDeviceListChanged() {
         let newDevices = audio.listInputDevices()
-        let newDefault = audio.currentInputDevice()
         let newIDs = Set(newDevices.map(\.id))
+        let addedNames = newIDs.subtracting(previousDeviceIDs)
+            .compactMap { id in newDevices.first { $0.id == id }?.name }
+        let removedIDs = previousDeviceIDs.subtracting(newIDs)
+
         let addedIDs = newIDs.subtracting(previousDeviceIDs)
 
-        // Check if a new Bluetooth device appeared and is already the default
-        if let defaultDevice = newDefault, isEnabled, mode == "auto" {
-            for addedID in addedIDs {
-                if audio.transportType(for: addedID) == "bluetooth" && addedID == defaultDevice.id {
-                    let preferred = readPreference()
-                    if preferred == defaultDevice.name || preferred.isEmpty {
-                        logger.debug("Preferred bluetooth device '\(defaultDevice.name, privacy: .public)' reconnected")
-                        break
-                    }
-                    // Potential BT hijack — defer revert until DEFAULT_INPUT_CHANGED confirms
-                    logger.debug("BT hijack pending: '\(defaultDevice.name, privacy: .public)' took default from preferred '\(preferred, privacy: .public)'")
-                    pendingBTHijack = true
-                    hijackCorrelationWork?.cancel()
-                    let work = DispatchWorkItem { [weak self] in
-                        Task { @MainActor in
-                            guard let self, self.pendingBTHijack else { return }
-                            self.pendingBTHijack = false
-                            self.hijackCorrelationWork = nil
-                            logger.debug("BT hijack correlation timeout — reverting")
-                            self.revertHijack()
-                        }
-                    }
-                    hijackCorrelationWork = work
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
-
-                    previousDeviceIDs = newIDs
-                    inputDevices = newDevices
-                    // Don't settleOnDevice — keep currentDevice as-is so
-                    // handleDefaultInputChanged's guard passes when it fires
-                    DistributedNotificationCenter.default().postNotificationName(
-                        NSNotification.Name("com.pszypowicz.MicGuard.devicesChanged"),
-                        object: nil
-                    )
-                    return
-                }
-            }
+        if !addedNames.isEmpty || !removedIDs.isEmpty {
+            logger.debug("DEVICE_LIST_CHANGED: added=\(addedNames, privacy: .public) removed=\(removedIDs.sorted().map { String($0) }, privacy: .public)")
+        } else {
+            logger.debug("DEVICE_LIST_CHANGED: no additions or removals")
         }
 
-        previousDeviceIDs = newIDs
+        // Track connection activity per device (used to detect BT instability)
+        let now = CFAbsoluteTimeGetCurrent()
+        for id in addedIDs { recentDeviceActivity[id] = now }
+        for id in removedIDs { recentDeviceActivity[id] = now }
+
+        // Only remove departed devices — new devices are acknowledged
+        // in handleDefaultInputChanged after the policy decision.
+        previousDeviceIDs.formIntersection(newIDs)
         inputDevices = newDevices
-        if let device = newDefault {
+
+        // If current device disconnected, settle on whatever macOS picked
+        if !newDevices.contains(where: { $0.name == currentDevice }),
+           let device = audio.currentInputDevice() {
+            logger.info("Current device '\(self.currentDevice, privacy: .public)' disconnected — falling back to '\(device.name, privacy: .public)'")
+            previousDeviceIDs.insert(device.id)
             settleOnDevice(device)
         }
 
-        // Post devicesChanged notification for UI updates
+        // Always repost status — the device list is part of the payload
+        debouncedPostStatusChanged()
+
         DistributedNotificationCenter.default().postNotificationName(
             NSNotification.Name("com.pszypowicz.MicGuard.devicesChanged"),
             object: nil
@@ -314,82 +304,97 @@ public final class AudioMonitor {
     }
 
     func handleDefaultInputChanged() {
-        let newDefault = audio.currentInputDevice()
-        let newName = newDefault?.name ?? ""
-
-        guard newName != currentDevice else { return }
+        guard let newDefault = audio.currentInputDevice(),
+              newDefault.name != currentDevice else { return }
 
         let oldDevice = currentDevice
-        let transport = newDefault.map { audio.transportType(for: $0.id) } ?? "none"
-        logger.debug("Default input changed: \(oldDevice, privacy: .public) → \(newName, privacy: .public) (\(transport, privacy: .public))")
+        let isKnown = previousDeviceIDs.contains(newDefault.id)
+        logger.debug("DEFAULT_INPUT_CHANGED: '\(oldDevice, privacy: .public)' → '\(newDefault.name, privacy: .public)' [id=\(newDefault.id, privacy: .public), known=\(isKnown, privacy: .public)]")
 
-        if !isEnabled {
-            // Disabled — accept any change without enforcement
-            pendingBTHijack = false
-            hijackCorrelationWork?.cancel()
-            hijackCorrelationWork = nil
-            settleOnDevice(newDefault)
-            return
-        }
-
-        // BT hijack confirmed — DEVICE_LIST_CHANGED flagged a new BT device as default,
-        // now DEFAULT_INPUT_CHANGED arrived within the correlation window
-        if pendingBTHijack {
-            hijackCorrelationWork?.cancel()
-            hijackCorrelationWork = nil
-            pendingBTHijack = false
-            logger.info("BT hijack confirmed — reverting")
-            revertHijack()
-            return
-        }
-
-        if mode == "auto" {
-            if revertingToPreferred {
-                revertingToPreferred = false
+        guard isEnabled, mode == "auto" else {
+            if !isEnabled {
+                previousDeviceIDs.insert(newDefault.id)
+            }
+            if isEnabled, mode == "manual" {
                 let preferred = readPreference()
-                if newName != preferred && !preferred.isEmpty
+                if newDefault.name != preferred && !preferred.isEmpty
                     && inputDevices.contains(where: { $0.name == preferred }) {
-                    logger.debug("Ignoring stale callback after BT hijack revert — re-enforcing '\(preferred, privacy: .public)'")
+                    logger.info("Manual mode: reverting to '\(preferred, privacy: .public)' (was '\(newDefault.name, privacy: .public)')")
                     if audio.setInputDevice(name: preferred) {
                         currentDevice = preferred
                         return
                     }
                 }
-                settleOnDevice(newDefault)
-            } else if let newDefault,
-                      !previousDeviceIDs.contains(newDefault.id) {
-                // Device connection event — DEFAULT_INPUT_CHANGED raced ahead of
-                // DEVICE_LIST_CHANGED. Not a user switch — don't save as preferred.
-                inputDevices = audio.listInputDevices()
-                previousDeviceIDs = Set(inputDevices.map(\.id))
-                let preferred = readPreference()
-                if preferred == newName || preferred.isEmpty {
-                    logger.debug("Preferred device '\(newName, privacy: .public)' reconnected (via DEFAULT_INPUT_CHANGED race)")
-                    settleOnDevice(newDefault)
-                } else if audio.transportType(for: newDefault.id) == "bluetooth" {
-                    logger.debug("New BT device '\(newName, privacy: .public)' became default before DEVICE_LIST_CHANGED — treating as hijack")
-                    revertHijack()
-                } else {
-                    logger.debug("New device '\(newName, privacy: .public)' connected (via DEFAULT_INPUT_CHANGED race) — accepting without saving as preferred")
-                    settleOnDevice(newDefault)
-                }
+            }
+            settleOnDevice(newDefault)
+            return
+        }
+
+        // After our own revert, suppress stale callbacks from the reverted device
+        if let revertedID = revertedFromDeviceID, newDefault.id == revertedID {
+            let elapsed = CFAbsoluteTimeGetCurrent() - revertTimestamp
+            if elapsed >= 1.0 {
+                // Suppression expired — clear and let normal logic decide
+                logger.debug("Revert suppression expired (\(String(format: "%.1f", elapsed), privacy: .public)s) for device [\(revertedID, privacy: .public)]")
+                revertedFromDeviceID = nil
             } else {
-                // User-initiated change — accept and save as new preferred
-                logger.info("User-initiated switch to '\(newName, privacy: .public)' — saving as preferred")
-                preferredDevice = newName
-                config.writePreferredDevice(newName)
+                let preferred = readPreference()
+                if newDefault.name != preferred && !preferred.isEmpty
+                    && inputDevices.contains(where: { $0.name == preferred }) {
+                    logger.debug("Stale callback from reverted device [\(revertedID, privacy: .public)] (\(String(format: "%.0f", elapsed * 1000), privacy: .public)ms after revert) — re-enforcing '\(preferred, privacy: .public)'")
+                    if audio.setInputDevice(name: preferred) {
+                        currentDevice = preferred
+                        return
+                    }
+                }
+                previousDeviceIDs.insert(newDefault.id)
                 settleOnDevice(newDefault)
+                return
+            }
+        }
+
+        // Core decision: is this device new (just connected) or known (already present)?
+        let isNew = !previousDeviceIDs.contains(newDefault.id)
+        previousDeviceIDs.insert(newDefault.id)
+
+        // If new, sync device list (may have arrived before DEVICE_LIST_CHANGED)
+        if isNew {
+            inputDevices = audio.listInputDevices()
+            previousDeviceIDs = Set(inputDevices.map(\.id))
+        }
+
+        if isNew {
+            // Device connection — macOS auto-switched to a new device
+            let preferred = readPreference()
+            if preferred == newDefault.name || preferred.isEmpty {
+                logger.debug("Preferred device '\(newDefault.name, privacy: .public)' reconnected")
+                settleOnDevice(newDefault)
+            } else {
+                logger.info("New device '\(newDefault.name, privacy: .public)' took default from preferred '\(preferred, privacy: .public)' — reverting")
+                revertHijack()
             }
         } else {
-            // Manual mode — always enforce preferred
-            let preferred = readPreference()
-            if newName != preferred && !preferred.isEmpty && inputDevices.contains(where: { $0.name == preferred }) {
-                logger.info("Manual mode: reverting to '\(preferred, privacy: .public)' (was '\(newName, privacy: .public)')")
-                if audio.setInputDevice(name: preferred) {
-                    currentDevice = preferred
-                    return // Another callback coming
-                }
-                logger.error("Failed to revert to preferred device '\(preferred, privacy: .public)'")
+            // Known device — check if either device had recent connection instability
+            let now = CFAbsoluteTimeGetCurrent()
+            let oldDeviceID = inputDevices.first(where: { $0.name == oldDevice })?.id
+            let oldDeviceHadRecentActivity: Bool = {
+                guard let id = oldDeviceID,
+                      let t = recentDeviceActivity[id] else { return false }
+                return now - t < 3.0
+            }()
+            let newDeviceHadRecentActivity: Bool = {
+                guard let t = recentDeviceActivity[newDefault.id] else { return false }
+                return now - t < 3.0
+            }()
+
+            if oldDeviceHadRecentActivity || newDeviceHadRecentActivity {
+                let which = oldDeviceHadRecentActivity ? oldDevice : newDefault.name
+                logger.info("BT instability: '\(which, privacy: .public)' had recent connection activity — not saving '\(newDefault.name, privacy: .public)' as preferred")
+            } else {
+                // No recent activity on old device — genuine user switch
+                logger.info("User-initiated switch to '\(newDefault.name, privacy: .public)' — saving as preferred")
+                preferredDevice = newDefault.name
+                config.writePreferredDevice(newDefault.name)
             }
             settleOnDevice(newDefault)
         }
@@ -400,6 +405,7 @@ public final class AudioMonitor {
         if let device {
             currentDevice = device.name
             inputVolume = audio.inputVolume(for: device.id) ?? 0
+            logger.debug("Settled on '\(device.name, privacy: .public)' [id=\(device.id, privacy: .public)]")
             if volumeListenerDeviceID != device.id {
                 registerVolumeListener(for: device.id, name: device.name)
             }
@@ -437,27 +443,30 @@ public final class AudioMonitor {
         return false
     }
 
-    /// Revert to the preferred device after a confirmed BT hijack.
+    /// Revert to the preferred device after a new device took over.
     func revertHijack() {
         let preferred = readPreference()
-        guard isEnabled, mode == "auto", !preferred.isEmpty,
+        guard !preferred.isEmpty,
               inputDevices.contains(where: { $0.name == preferred }) else {
-            // Can't revert — accept current device
             if let device = audio.currentInputDevice() {
-                logger.info("BT hijack: preferred device '\(preferred, privacy: .public)' not connected — staying on '\(device.name, privacy: .public)'")
+                logger.info("Preferred device '\(preferred, privacy: .public)' not connected — staying on '\(device.name, privacy: .public)'")
                 settleOnDevice(device)
             }
             return
         }
-        logger.info("BT hijack: reverting to '\(preferred, privacy: .public)'")
+        // Track which device we're reverting from so stale callbacks are suppressed
+        revertedFromDeviceID = audio.currentInputDevice()?.id
+        revertTimestamp = CFAbsoluteTimeGetCurrent()
+
+        logger.info("Reverting to preferred '\(preferred, privacy: .public)' (suppressing device [\(self.revertedFromDeviceID.map { String($0) } ?? "nil", privacy: .public)] for 1s)")
         if audio.setInputDevice(name: preferred) {
-            revertingToPreferred = true
             currentDevice = preferred
             if let prefDevice = inputDevices.first(where: { $0.name == preferred }) {
                 settleOnDevice((id: prefDevice.id, name: prefDevice.name))
             }
         } else {
             logger.error("Failed to revert to preferred device '\(preferred, privacy: .public)'")
+            revertedFromDeviceID = nil
             if let device = audio.currentInputDevice() {
                 settleOnDevice(device)
             }

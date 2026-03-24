@@ -7,22 +7,20 @@ import Testing
 @MainActor
 struct EdgeCaseTests {
 
-    @Test("No preferred device + BT connects — accepts without crash")
-    func noPreferredBTConnects() {
+    @Test("No preferred device + new device connects — accepts without crash")
+    func noPreferredAccepts() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "",
             current: macbook,
             devices: [macbook]
         )
 
-        // AirPods connect
         mockAudio.devices = [macbook, airpods]
         mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
 
         monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
 
-        // Should not crash, and should accept the BT device
         #expect(monitor.currentDevice == "AirPods Pro 3")
         #expect(mockAudio.setInputDeviceCalls.isEmpty)
     }
@@ -43,13 +41,34 @@ struct EdgeCaseTests {
 
         #expect(monitor.currentDevice == "MacBook Pro Microphone")
         #expect(mockAudio.setInputDeviceCalls.isEmpty)
-        // handleDefaultInputChanged would also be no-op (guard: newName == currentDevice)
 
-        mockAudio.setInputDeviceCalls = []
+        // handleDefaultInputChanged is no-op (guard: newName == currentDevice)
         monitor.handleDefaultInputChanged()
 
         #expect(mockAudio.setInputDeviceCalls.isEmpty)
         #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+    }
+
+    @Test("Non-current device disconnects — device list updated")
+    func nonCurrentDeviceDisconnects() {
+        let (monitor, mockAudio, _) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook, airpods]
+        )
+
+        // AirPods disconnect while MacBook is current (e.g. after revert)
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
+
+        monitor.handleDeviceListChanged()
+
+        // Current device unchanged, but device list must be updated
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(monitor.inputDevices.count == 1)
+        #expect(monitor.inputDevices.first?.name == "MacBook Pro Microphone")
+        // AirPods removed from previousDeviceIDs
+        #expect(!monitor.previousDeviceIDs.contains(airpods.id))
     }
 
     @Test("setInputDevice fails — stays on current")
@@ -57,27 +76,17 @@ struct EdgeCaseTests {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "MacBook Pro Microphone",
             current: macbook,
-            devices: [macbook, airpods],
-            transportTypes: [airpods.id: "bluetooth"]
+            devices: [macbook]
         )
 
         mockAudio.setInputDeviceResult = false
         mockAudio.devices = [macbook, airpods]
         mockAudio.currentDefault = airpods
-        mockAudio.transportTypes[airpods.id] = "bluetooth"
-
-        // Add airpods as "new" device
-        monitor.previousDeviceIDs = Set([macbook.id])
 
         monitor.handleDeviceListChanged()
-
-        #expect(monitor.pendingBTHijack == true)
-
-        // DEFAULT_INPUT_CHANGED confirms hijack — revert attempted but fails
         monitor.handleDefaultInputChanged()
 
         #expect(mockAudio.setInputDeviceCalls.contains("MacBook Pro Microphone"))
-        // Falls through to settleOnDevice with the actual default (AirPods)
         #expect(monitor.currentDevice == "AirPods Pro 3")
     }
 }

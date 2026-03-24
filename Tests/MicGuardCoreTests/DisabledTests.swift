@@ -43,6 +43,7 @@ struct DisabledTests {
         mockAudio.transportTypes[airpods.id] = "bluetooth"
 
         monitor.handleDeviceListChanged()
+        monitor.handleDefaultInputChanged()
 
         #expect(mockAudio.setInputDeviceCalls.isEmpty,
                 "Should not enforce when disabled")
