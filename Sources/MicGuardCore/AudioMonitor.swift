@@ -253,8 +253,10 @@ public final class AudioMonitor {
         config.writePreferredDevice(name)
         preferredDevice = name
         if audio.setInputDevice(name: name) {
-            currentDevice = name
             logger.info("Preferred device set to '\(name, privacy: .public)'")
+            if let device = inputDevices.first(where: { $0.name == name }) {
+                settleOnDevice(device)
+            }
         } else {
             logger.error("Failed to set input device to '\(name, privacy: .public)'")
         }
