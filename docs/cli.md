@@ -69,7 +69,7 @@ External USB Mic
 
 ### `mic-guard set <name>`
 
-Set the default input device by name. Also updates the `preferred-mic` config file.
+Set the preferred device and switch to manual mode.
 
 ```bash
 $ mic-guard set "External USB Mic"
