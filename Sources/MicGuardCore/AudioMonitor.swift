@@ -354,6 +354,8 @@ public final class AudioMonitor {
             } else {
                 logger.info("Protecting preferred '\(preferred, privacy: .public)' — reverting from '\(newDefault.name, privacy: .public)' (\(isNew ? "new device" : "settle period", privacy: .public))")
                 revertHijack()
+                // Extend settle period — a revert means devices aren't stable yet
+                lastDeviceListChange = CFAbsoluteTimeGetCurrent()
             }
         }
     }
