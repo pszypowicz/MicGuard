@@ -32,12 +32,15 @@ The `info` value is a JSON-serialized string with the following structure:
 ```json
 {
   "enabled": true,
+  "mode": "auto",
   "devices": [
     {
       "name": "MacBook Pro Microphone",
       "current": true,
       "volume": 75,
-      "muted": false
+      "muted": false,
+      "available": true,
+      "preferred": true
     }
   ]
 }
@@ -46,11 +49,14 @@ The `info` value is a JSON-serialized string with the following structure:
 | Field | Type | Description |
 |-------|------|-------------|
 | `enabled` | Boolean | Whether MicGuard device enforcement is active |
+| `mode` | String | Current mode: `"auto"` or `"manual"` |
 | `devices` | Array | All input devices, sorted alphabetically by name |
 | `devices[].name` | String | Device name |
 | `devices[].current` | Boolean | `true` if this is the active input device |
 | `devices[].volume` | Integer | Input volume 0–100 |
 | `devices[].muted` | Boolean | Native mute flag state |
+| `devices[].available` | Boolean | `true` if the device is currently connected (the preferred device appears with `false` when disconnected) |
+| `devices[].preferred` | Boolean | `true` if this is the configured preferred device |
 
 Volume and mute changes are debounced (100ms) before posting.
 

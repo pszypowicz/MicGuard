@@ -28,6 +28,36 @@ External USB Mic
 AirPods Pro
 ```
 
+With `--output json`, each device includes extended fields:
+
+```bash
+$ mic-guard list --output json
+[
+  {
+    "current" : true,
+    "muted" : false,
+    "name" : "MacBook Pro Microphone",
+    "preferred" : true,
+    "volume" : 100
+  },
+  {
+    "current" : false,
+    "muted" : false,
+    "name" : "AirPods Pro",
+    "preferred" : false,
+    "volume" : 75
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | String | Device name |
+| `current` | Boolean | `true` if this is the active input device |
+| `preferred` | Boolean | `true` if this is the configured preferred device |
+| `volume` | Integer | Input volume 0–100 (omitted if device doesn't support volume) |
+| `muted` | Boolean | Native mute flag state (omitted if device doesn't support mute) |
+
 ### `mic-guard current`
 
 Print the current default input device.
@@ -65,17 +95,41 @@ $ mic-guard mute
 
 Enable MicGuard. It will revert the default input device whenever it changes away from your preferred mic.
 
+```bash
+$ mic-guard enable
+enabled
+$ mic-guard enable --quiet   # or -q — no output, useful for scripting
+```
+
 ### `mic-guard disable`
 
 Disable MicGuard. The default input device can change freely.
 
+```bash
+$ mic-guard disable
+disabled
+$ mic-guard disable -q   # no output
+```
+
+### `mic-guard toggle`
+
+Toggle MicGuard on/off. Prints the new state.
+
+```bash
+$ mic-guard toggle
+disabled
+$ mic-guard toggle
+enabled
+$ mic-guard toggle -q   # no output
+```
+
 ### `mic-guard status`
 
-Print whether MicGuard is enabled or disabled.
+Print whether MicGuard is enabled or disabled, and the current mode.
 
 ```bash
 $ mic-guard status
-enabled
+enabled (auto)
 ```
 
 ### `mic-guard ping`
