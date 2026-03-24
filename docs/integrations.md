@@ -37,8 +37,8 @@ Icons are [Nerd Font](https://www.nerdfonts.com/) glyphs. A patched font is requ
 
 ### Features
 
-- **Left-click** — toggle mute/unmute (sets input volume to 0 or 100)
-- **Right-click** — popup picker listing all input devices + enable/disable toggle; selecting a device sets it as default and updates `preferred-mic`
+- **Left-click** — toggle mute/unmute
+- **Right-click** — popup picker listing all input devices; selecting a device sets it as preferred and switches to manual mode
 
 ### Setup
 
@@ -71,104 +71,215 @@ mic_shield=(
   label.drawing=off
   padding_right=0
   padding_left=5
-  click_script="$PLUGIN_DIR/mic_click.sh"
 )
 
 # Events
-sketchybar --add event mic_clicked
 sketchybar --add event mic_status_changed "com.pszypowicz.MicGuard.statusChanged"
 sketchybar --add event mic_app_terminated "com.pszypowicz.MicGuard.appTerminated"
 
 # mic item (rightmost — mic icon + device name label)
 sketchybar --add item mic right \
   --set mic "${mic[@]}" \
-  --subscribe mic mic_clicked mic_status_changed mic_app_terminated mouse.exited mouse.exited.global
+  --subscribe mic mic_status_changed mic_app_terminated mouse.exited mouse.exited.global
 
 # mic.shield item (left of mic — shield icon only)
 sketchybar --add item mic.shield right \
   --set mic.shield "${mic_shield[@]}" \
   --subscribe mic.shield mouse.exited mouse.exited.global
 
-# Request current status from MicGuard
-mic-guard ping 2>/dev/null &
+# Request current status so bar populates immediately on (re)start
+mic-guard -q ping 2>/dev/null &
 ```
 
-The `mic-guard ping` at the end asks the running MicGuard daemon to re-broadcast `com.pszypowicz.MicGuard.statusChanged`, so bar items and popup content populate immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
+The `mic-guard -q ping` at the end asks the running MicGuard daemon to re-broadcast `com.pszypowicz.MicGuard.statusChanged`, so bar items and popup content populate immediately when sketchybar starts (or restarts) regardless of when MicGuard launched.
 
 Key points:
 - Two items: `mic` (mic icon + device name label) and `mic.shield` (shield icon only)
 - `mic_status_changed` maps to the `com.pszypowicz.MicGuard.statusChanged` distributed notification. The notification carries a unified JSON payload under `userInfo["info"]` with enabled state, device list, and per-device volume/mute — the plugin updates both bar icons and popup items from this single notification
 - `mic_app_terminated` maps to `com.pszypowicz.MicGuard.appTerminated`
-- `mic_clicked` is a custom event triggered after mute/unmute or device change to refresh the display
 - `mouse.exited` / `mouse.exited.global` close the device picker popup
 - Padding is tightened between items so they read as a visual unit
 
 #### 2. Update script
 
-The plugin script (`plugins/mic.sh`) runs on every subscribed event and periodic update. It updates both `mic.shield` and `mic` in a single `sketchybar` call:
+The plugin script (`plugins/mic.sh`) runs on every subscribed event and periodic update. It parses the JSON notification payload with `jq`, updates both bar items, and manages a popup device picker:
 
 ```bash
 #!/usr/bin/env bash
 
-export PATH="/opt/homebrew/bin:$PATH"
 source "$CONFIG_DIR/colors.sh"
 
-# Close popup when mouse leaves
+# ── Nerd Font glyphs ────────────────────────────────────────────────
+SHIELD_CHECK=󰕥  # nf-md-shield_check (U+F0565)
+SHIELD_OFF=󰦞   # nf-md-shield_off   (U+F099E)
+MIC_ON=󰍬       # nf-md-microphone     (U+F036C)
+MIC_OFF=󰍭      # nf-md-microphone_off (U+F036D)
+CHECK=󰄬        # nf-md-check          (U+F012C)
+
+SHIELD_CLICK="mic-guard -q toggle"
+
+# ── Helpers ─────────────────────────────────────────────────────────
+
+update_bar() {
+  local shield_icon="$1" shield_color="$2" mic_icon="$3" mic_color="$4" mic_label="$5" label_color="$6"
+  sketchybar -m \
+    --set mic.shield icon="$shield_icon" icon.color="$shield_color" label.drawing=off drawing=on click_script="$SHIELD_CLICK" \
+    --set mic       icon="$mic_icon"     icon.color="$mic_color" \
+                    label="$mic_label"   label.color="$label_color" drawing=on
+}
+
+show_off() {
+  # Remove stale popup items
+  local items
+  items=$(sketchybar --query mic 2>/dev/null | jq -r '.popup.items // [] | .[]')
+  local args=()
+  while IFS= read -r item; do
+    [[ -n "$item" ]] && args+=(--remove "$item")
+  done <<< "$items"
+
+  args+=(
+    --set mic.shield icon="$SHIELD_OFF" icon.color="$RED"
+                     label="Off" label.color="$RED" label.drawing=on drawing=on
+                     click_script="$SHIELD_CLICK"
+    --set mic drawing=off popup.drawing=off
+  )
+  sketchybar -m "${args[@]}"
+}
+
+shopt -s extglob
+slugify() {
+  local s="${1,,}"
+  s="${s//[^a-z0-9]/_}"
+  s="${s//+(_)/_}"
+  s="${s#_}"; s="${s%_}"
+  echo "$s"
+}
+
+# ── Mouse exit → close popup ───────────────────────────────────────
+
 if [[ "$SENDER" == "mouse.exited" || "$SENDER" == "mouse.exited.global" ]]; then
   sketchybar --set mic popup.drawing=off
   exit 0
 fi
 
-# Nerd Font glyphs
-SHIELD_CHECK=󰕥  # nf-md-shield_check (U+F0565)
-SHIELD_OFF=󰦞   # nf-md-shield_off (U+F099E)
-MIC_ON=󰍬       # nf-md-microphone (U+F036C)
-MIC_OFF=󰍭      # nf-md-microphone_off (U+F036D)
+# ── App terminated → "Off" state ───────────────────────────────────
 
-# Helper: update both items in a single sketchybar call
-update_bar() {
-  local shield_icon=$1 shield_color=$2 mic_icon=$3 mic_color=$4 mic_label=$5 label_color=$6
-  sketchybar -m \
-    --set mic.shield icon="$shield_icon" icon.color=$shield_color label.drawing=off drawing=on \
-    --set mic icon="$mic_icon" icon.color=$mic_color label="$mic_label" label.color=$label_color drawing=on
-}
-
-# Show shield with "Off" label, hide mic item
-show_off() {
-  sketchybar -m \
-    --set mic.shield icon="$SHIELD_OFF" icon.color=$RED label="Off" label.color=$RED label.drawing=on drawing=on \
-    --set mic drawing=off
-}
-
-# MicGuard app terminated
 if [[ "$SENDER" == "mic_app_terminated" ]]; then
   show_off
   exit 0
 fi
 
-# Fast path: notification from MicGuard with full state in $INFO
+# ── Status changed → update bar icons + popup ─────────────────────
+
 if [[ "$SENDER" == "mic_status_changed" && -n "$INFO" ]]; then
-  ENABLED=$(echo "$INFO" | sed -n 's/.*"enabled"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-  MIC_NAME=$(echo "$INFO" | sed -n 's/.*"device"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-  MIC_VOLUME=$(echo "$INFO" | sed -n 's/.*"volume"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-  MIC_MUTED=$(echo "$INFO" | sed -n 's/.*"muted"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+  PAYLOAD=$(echo "$INFO" | jq -r '.info // empty')
+  [[ -z "$PAYLOAD" ]] && exit 0
+
+  # Extract all fields in a single jq call
+  eval "$(echo "$PAYLOAD" | jq -r '
+    (.devices // []) as $devs |
+    ($devs | map(select(.current)) | .[0] // {}) as $cur |
+    (($devs | map(select(.preferred)) | .[0].name) // "") as $pref |
+    ($devs | map(select(.available == false) | .name)) as $unavail |
+    @sh "ENABLED=\(.enabled // false)",
+    @sh "CURRENT_NAME=\($cur.name // "")",
+    @sh "CURRENT_MUTED=\($cur.muted // false)",
+    @sh "CURRENT_VOLUME=\($cur.volume // 0)",
+    @sh "PREFERRED=\($pref)",
+    @sh "DEVICES_JSON=\($devs | tojson)",
+    "UNAVAILABLE_NAMES=(\($unavail | map(@sh) | join(" ")))"
+  ')"
+
+  # Truncate label
+  MIC_NAME="$CURRENT_NAME"
   if [[ ${#MIC_NAME} -gt 12 ]]; then
     MIC_NAME="${MIC_NAME:0:11}…"
   fi
 
-  if [[ "$ENABLED" == "0" && "$MIC_MUTED" == "1" ]]; then
-    update_bar "$SHIELD_OFF" $YELLOW "$MIC_OFF" $RED "$MIC_NAME" $RED
-  elif [[ "$ENABLED" == "0" ]]; then
-    update_bar "$SHIELD_OFF" $YELLOW "$MIC_ON" $YELLOW "$MIC_NAME" $YELLOW
-  elif [[ "$MIC_MUTED" == "1" ]]; then
-    update_bar "$SHIELD_CHECK" $WHITE "$MIC_OFF" $RED "$MIC_NAME" $RED
+  # Muted = native mute flag OR volume zero
+  IS_MUTED=false
+  [[ "$CURRENT_MUTED" == "true" || "$CURRENT_VOLUME" == "0" ]] && IS_MUTED=true
+
+  # Update bar icons
+  if [[ "$ENABLED" == "false" && "$IS_MUTED" == "true" ]]; then
+    update_bar "$SHIELD_OFF"   "$YELLOW" "$MIC_OFF" "$RED"    "$MIC_NAME" "$RED"
+  elif [[ "$ENABLED" == "false" ]]; then
+    update_bar "$SHIELD_OFF"   "$YELLOW" "$MIC_ON"  "$YELLOW" "$MIC_NAME" "$YELLOW"
+  elif [[ "$IS_MUTED" == "true" ]]; then
+    update_bar "$SHIELD_CHECK" "$WHITE"  "$MIC_OFF" "$RED"    "$MIC_NAME" "$RED"
   else
-    update_bar "$SHIELD_CHECK" $WHITE "$MIC_ON" $WHITE "$MIC_NAME" $WHITE
+    update_bar "$SHIELD_CHECK" "$WHITE"  "$MIC_ON"  "$WHITE"  "$MIC_NAME" "$WHITE"
   fi
+
+  # ── Popup: device picker ────────────────────────────────────────
+
+  OLD_SLUGS=$(sketchybar --query mic 2>/dev/null | jq -r '.popup.items // [] | .[]' | sort)
+
+  SORTED_NAMES=()
+  SORTED_SLUGS=()
+  while IFS= read -r line; do
+    if [[ -n "$line" ]]; then
+      SORTED_NAMES+=("$line")
+      SORTED_SLUGS+=("$(slugify "$line")")
+    fi
+  done < <(echo "$DEVICES_JSON" | jq -r '.[].name' | sort)
+
+  NEW_SLUGS=""
+  for slug in "${SORTED_SLUGS[@]}"; do
+    NEW_SLUGS+="mic.device.$slug"$'\n'
+  done
+  NEW_SLUGS="${NEW_SLUGS%$'\n'}"
+
+  declare -A UNAVAILABLE=()
+  for _uname in "${UNAVAILABLE_NAMES[@]}"; do
+    UNAVAILABLE["$_uname"]=1
+  done
+
+  ARGS=()
+
+  if [[ "$OLD_SLUGS" != "$NEW_SLUGS" ]]; then
+    while IFS= read -r item; do
+      [[ -n "$item" ]] && ARGS+=(--remove "$item")
+    done <<< "$OLD_SLUGS"
+
+    for slug in "${SORTED_SLUGS[@]}"; do
+      ARGS+=(--add item "mic.device.$slug" popup.mic)
+    done
+  fi
+
+  for i in "${!SORTED_NAMES[@]}"; do
+    name="${SORTED_NAMES[$i]}"
+    ITEM="mic.device.${SORTED_SLUGS[$i]}"
+    ESCAPED=$(printf '%s' "$name" | sed "s/'/'\\\\''/g")
+
+    CLICK="mic-guard -q set '$ESCAPED'; sketchybar --set mic popup.drawing=off"
+    if [[ -n "${UNAVAILABLE[$name]+x}" ]]; then
+      ICON="$CHECK"; COLOR="0x55ffffff"; DISPLAY="$name (offline)"; CLICK=""
+    elif [[ "$name" == "$PREFERRED" ]]; then
+      ICON="$CHECK"; COLOR="$WHITE"; DISPLAY="$name"
+    else
+      ICON=" "; COLOR="$ORANGE"; DISPLAY="$name"
+    fi
+
+    ARGS+=(--set "$ITEM"
+      label="$DISPLAY"
+      icon="$ICON"
+      icon.width=20
+      icon.color="$COLOR"
+      label.color="$COLOR"
+      background.color=0x00000000
+      background.height=30
+      background.drawing=on
+      click_script="$CLICK")
+  done
+
+  sketchybar "${ARGS[@]}"
   exit 0
 fi
 
-# Health check: periodic 60s update / mic_clicked — only detects a dead app
+# ── Health check: periodic 60s — detect dead MicGuard ─────────────
+
 if ! pgrep -xq MicGuard; then
   show_off
 fi
@@ -178,13 +289,10 @@ fi
 
 The click script (`plugins/mic_click.sh`) handles left-click mute/unmute and right-click popup toggle.
 
-Popup items are pre-built by the `mic_devices_changed` handler in the update script, so right-click just toggles `popup.drawing` — no CLI calls, no JSON parsing, no flicker.
+Popup items are managed by the `mic_status_changed` handler in the update script, so right-click just toggles `popup.drawing`.
 
 ```bash
 #!/usr/bin/env bash
-
-export PATH="/opt/homebrew/bin:$PATH"
-source "$CONFIG_DIR/colors.sh"
 
 # Guard: do nothing if MicGuard.app is not running
 if ! pgrep -xq MicGuard; then
@@ -192,13 +300,9 @@ if ! pgrep -xq MicGuard; then
 fi
 
 if [[ "$BUTTON" == "right" ]]; then
-  # Right-click: toggle popup visibility
-  # Popup items are pre-built by mic_devices_changed handler
   sketchybar --set mic popup.drawing=toggle
 else
-  # Left-click: mute/unmute toggle via native CoreAudio
-  mic-guard mute
-  sketchybar --trigger mic_clicked
+  mic-guard -q mute
 fi
 ```
 
