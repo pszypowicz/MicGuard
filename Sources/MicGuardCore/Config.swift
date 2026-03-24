@@ -1,25 +1,26 @@
 import Foundation
 import os
 
-enum Config {
-    static let configDir = FileManager.default.homeDirectoryForCurrentUser
+public enum Config {
+    public static let configDir = FileManager.default.homeDirectoryForCurrentUser
         .appending(path: ".config/mic-guard")
-    static let prefFile = configDir.appending(component: "preferred-mic")
-    static let enabledFile = configDir.appending(component: "enabled")
+    public static let prefFile = configDir.appending(component: "preferred-mic")
+    public static let enabledFile = configDir.appending(component: "enabled")
+    public static let modeFile = configDir.appending(component: "mode")
 
-    static func ensureConfigDir() {
+    public static func ensureConfigDir() {
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true,
                                                   attributes: [.posixPermissions: 0o700])
     }
 
-    static func readEnabled() -> Bool {
+    public static func readEnabled() -> Bool {
         guard let data = try? String(contentsOf: enabledFile, encoding: .utf8) else {
             return true // enabled by default
         }
         return data.trimmingCharacters(in: .whitespacesAndNewlines) != "0"
     }
 
-    static func writeEnabled(_ value: Bool) {
+    public static func writeEnabled(_ value: Bool) {
         ensureConfigDir()
         do {
             try (value ? "1" : "0").write(to: enabledFile, atomically: true, encoding: .utf8)
@@ -29,7 +30,7 @@ enum Config {
         setFilePermissions(enabledFile)
     }
 
-    static func readPreferredDevice() -> String {
+    public static func readPreferredDevice() -> String {
         if let data = try? String(contentsOf: prefFile, encoding: .utf8) {
             let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
@@ -37,7 +38,7 @@ enum Config {
         return ""
     }
 
-    static func writePreferredDevice(_ name: String) {
+    public static func writePreferredDevice(_ name: String) {
         ensureConfigDir()
         do {
             try name.write(to: prefFile, atomically: true, encoding: .utf8)
@@ -47,12 +48,22 @@ enum Config {
         setFilePermissions(prefFile)
     }
 
-    static func formatVersion(base: String) -> String {
-        #if DEBUG
-        return "\(base) (\(BuildMetadata.gitHash) \(BuildMetadata.buildDate))"
-        #else
-        return "\(base) (\(BuildMetadata.gitHash))"
-        #endif
+    public static func readMode() -> String {
+        if let data = try? String(contentsOf: modeFile, encoding: .utf8) {
+            let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed == "manual" { return "manual" }
+        }
+        return "auto"
+    }
+
+    public static func writeMode(_ value: String) {
+        ensureConfigDir()
+        do {
+            try value.write(to: modeFile, atomically: true, encoding: .utf8)
+        } catch {
+            logger.error("Failed to write mode: \(error, privacy: .public)")
+        }
+        setFilePermissions(modeFile)
     }
 
     private static func setFilePermissions(_ url: URL) {
