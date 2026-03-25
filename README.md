@@ -44,14 +44,9 @@ On first launch the current input device becomes your preferred mic. You can cha
 AirPods connecting hijacks your input device. MicGuard reverts it instantly.
 
 <p align="center">
-  <video src="docs/images/demo-micguard-disabled.mp4" width="380" autoplay loop muted playsinline></video>
+  <img src="docs/images/demo-micguard-disabled.gif" width="380" alt="MicGuard disabled: input device gets hijacked">
   &nbsp;&nbsp;
-  <video src="docs/images/demo-micguard-enabled.mp4" width="380" autoplay loop muted playsinline></video>
-</p>
-<p align="center">
-  <em>MicGuard disabled</em>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <em>MicGuard enabled</em>
+  <img src="docs/images/demo-micguard-enabled.gif" width="380" alt="MicGuard enabled: input device is preserved">
 </p>
 
 ## Screenshots
@@ -62,13 +57,6 @@ AirPods connecting hijacks your input device. MicGuard reverts it instantly.
   <img src="docs/images/settings.png" width="360" alt="Settings view">
   &nbsp;&nbsp;
   <img src="docs/images/sketchybar.png" width="240" alt="SketchyBar device picker">
-</p>
-<p align="center">
-  <em>Menubar popup</em>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <em>Settings</em>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <em>SketchyBar integration</em>
 </p>
 
 ## Modes
