@@ -56,6 +56,25 @@ struct MicGuardApp: App {
 
         // Daemon mode
         Config.ensureConfigDir()
+
+        // Single-instance lock — kernel releases automatically on exit/crash
+        let lockPath = Config.configDir.appending(component: "lock").path(percentEncoded: false)
+        let lockFD = open(lockPath, O_CREAT | O_WRONLY, 0o600)
+        guard lockFD != -1 else {
+            logger.error("Could not create lock file — exiting")
+            exit(1)
+        }
+        var lock = flock(
+            l_start: 0, l_len: 0, l_pid: getpid(),
+            l_type: Int16(F_WRLCK), l_whence: Int16(SEEK_SET)
+        )
+        if fcntl(lockFD, F_SETLK, &lock) == -1 {
+            var info = lock
+            _ = fcntl(lockFD, F_GETLK, &info)
+            logger.info("Another instance is already running (PID \(info.l_pid, privacy: .public)) — exiting")
+            exit(0)
+        }
+
         logger.info("MicGuard starting")
         installSignalHandlers()
 

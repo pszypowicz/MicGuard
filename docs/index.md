@@ -51,3 +51,4 @@ All config lives in `~/.config/mic-guard/`:
 | `enabled` | `1` or `0` — whether MicGuard is active |
 | `mode` | `auto` or `manual` — device enforcement strategy (default: `auto`) |
 | `settle-seconds` | Seconds to wait before accepting a device switch as user-initiated (1–30, default: `2`; the Settings UI slider caps at 10) |
+| `lock` | `fcntl` advisory lock file — prevents duplicate daemon instances (kernel-managed, no manual cleanup needed) |
