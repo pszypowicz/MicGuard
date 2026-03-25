@@ -43,22 +43,33 @@ On first launch the current input device becomes your preferred mic. You can cha
 
 AirPods connecting hijacks your input device. MicGuard reverts it instantly.
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/demo-micguard-disabled.gif" alt="MicGuard disabled: input device gets hijacked"><br><em>MicGuard disabled</em></td>
-    <td align="center"><img src="docs/images/demo-micguard-enabled.gif" alt="MicGuard enabled: input device is preserved"><br><em>MicGuard enabled</em></td>
-  </tr>
-</table>
+<p align="center">
+  <video src="docs/images/demo-micguard-disabled.mp4" width="380" autoplay loop muted playsinline></video>
+  &nbsp;&nbsp;
+  <video src="docs/images/demo-micguard-enabled.mp4" width="380" autoplay loop muted playsinline></video>
+</p>
+<p align="center">
+  <em>MicGuard disabled</em>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <em>MicGuard enabled</em>
+</p>
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center"><img src="docs/images/menubar.png" width="240" alt="Menubar popup"><br><em>Menubar popup</em></td>
-    <td align="center"><img src="docs/images/settings.png" width="360" alt="Settings view"><br><em>Settings</em></td>
-    <td align="center"><img src="docs/images/sketchybar.png" width="240" alt="SketchyBar device picker"><br><em>SketchyBar integration</em></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/images/menubar.png" width="240" alt="Menubar popup">
+  &nbsp;&nbsp;
+  <img src="docs/images/settings.png" width="360" alt="Settings view">
+  &nbsp;&nbsp;
+  <img src="docs/images/sketchybar.png" width="240" alt="SketchyBar device picker">
+</p>
+<p align="center">
+  <em>Menubar popup</em>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <em>Settings</em>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <em>SketchyBar integration</em>
+</p>
 
 ## Modes
 

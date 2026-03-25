@@ -10,6 +10,14 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 
 > **Beta:** MicGuard is pre-1.0. Backward compatibility is not guaranteed until version 1.0.0 is reached.
 
+## Demo
+
+AirPods connecting hijacks your input device. MicGuard reverts it instantly.
+
+| MicGuard disabled | MicGuard enabled |
+|---|---|
+| ![MicGuard disabled](images/demo-micguard-disabled.gif) | ![MicGuard enabled](images/demo-micguard-enabled.gif) |
+
 ## How it works
 
 MicGuard is a macOS menubar app that registers a CoreAudio property listener on the default input device. When the system switches the input (e.g. when AirPods connect), MicGuard immediately reverts to your preferred microphone using native CoreAudio APIs.
