@@ -150,11 +150,11 @@ If MicGuard cannot find the preferred device (e.g. it was disconnected), it will
 
 ### Login item not starting
 
-MicGuard registers as a login item via `SMAppService.mainApp`. If it's not starting at login:
+MicGuard auto-enables "Launch at Login" on first install via `SMAppService.mainApp`. If it's not starting at login:
 
 1. Check **System Settings → General → Login Items** — ensure MicGuard is listed and enabled
 2. Try removing and re-adding: toggle "Launch at Login" off in MicGuard Settings, then back on
-3. If MicGuard doesn't appear in the list, launch it manually and enable "Launch at Login" in Settings
+3. If MicGuard doesn't appear in the list, launch it manually — the login item will be registered automatically on the next daemon start
 
 ### Mute not working
 
