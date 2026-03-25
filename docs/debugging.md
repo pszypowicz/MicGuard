@@ -76,7 +76,7 @@ To run MicGuard directly from a terminal (useful during development):
 /Applications/MicGuard.app/Contents/MacOS/MicGuard
 ```
 
-When installed as a login item via `SMAppService.mainApp`, macOS prevents duplicate instances. During development, quit any existing MicGuard process before launching another (`killall MicGuard`). Running two daemons simultaneously causes conflicting CoreAudio listeners.
+MicGuard acquires an `fcntl` advisory lock on `~/.config/mic-guard/lock` at startup. If another instance is already running, the new process logs the existing PID and exits immediately. The lock is kernel-managed — it is released automatically when the process exits, crashes, or is killed (including `SIGKILL`). The lock file itself persists on disk but does not block the next launch; only an active file descriptor holding the lock does.
 
 Since MicGuard uses `os.Logger` instead of stderr, you won't see log output directly in the terminal. Use `log stream` in a separate terminal tab to observe the logs.
 
