@@ -17,9 +17,7 @@ struct PopoverView: View {
 
         Divider()
 
-        SettingsLink {
-            Text("Settings...")
-        }
+        Button("Settings...") { SettingsView.showWindow() }
 
         Button("About MicGuard") { AboutView.showWindow() }
         Button("Quit MicGuard") { NSApplication.shared.terminate(nil) }

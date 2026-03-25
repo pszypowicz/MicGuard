@@ -82,6 +82,37 @@ struct SettingsView: View {
         }
     }
 
+    static func showWindow() {
+        let windowID = "settings-micguard"
+
+        // Reuse existing window if open
+        if let existing = NSApp.windows.first(where: { $0.identifier?.rawValue == windowID }) {
+            existing.level = .floating
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+            return
+        }
+
+        let hostingView = NSHostingView(rootView: SettingsView())
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        let fittingSize = hostingView.fittingSize
+
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: fittingSize),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.identifier = NSUserInterfaceItemIdentifier(windowID)
+        window.title = "MicGuard Settings"
+        window.contentView = hostingView
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+    }
+
     private func toggleLoginItem(_ enable: Bool) {
         do {
             if enable {
