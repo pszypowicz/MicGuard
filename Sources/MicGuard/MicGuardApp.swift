@@ -1,5 +1,6 @@
 import MicGuardCore
 import os
+import ServiceManagement
 import SwiftUI
 
 private func postTerminationNotification() {
@@ -79,6 +80,12 @@ struct MicGuardApp: App {
         installSignalHandlers()
 
         AudioMonitor.shared.start()
+
+        // Auto-enable login item on first install
+        if SMAppService.mainApp.status == .notRegistered {
+            try? SMAppService.mainApp.register()
+            logger.info("Auto-enabled Launch at Login (first install)")
+        }
 
         // Try to start the XPC listener. This only succeeds when the process
         // was launched by launchd with the Mach service registered (make dev).

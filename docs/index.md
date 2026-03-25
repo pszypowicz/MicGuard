@@ -14,7 +14,7 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 
 MicGuard is a macOS menubar app that registers a CoreAudio property listener on the default input device. When the system switches the input (e.g. when AirPods connect), MicGuard immediately reverts to your preferred microphone using native CoreAudio APIs.
 
-The preferred mic is stored in `~/.config/mic-guard/preferred-mic`. If the file doesn't exist on first run, MicGuard initializes it with the current input device. The CLI (`mic-guard`) performs direct CoreAudio calls and config writes, then posts a `requestStatus` distributed notification so the daemon re-reads state and broadcasts `statusChanged`. You can enable "Launch at Login" from Settings, which registers MicGuard as a login item via `SMAppService.mainApp`.
+The preferred mic is stored in `~/.config/mic-guard/preferred-mic`. If the file doesn't exist on first run, MicGuard initializes it with the current input device. The CLI (`mic-guard`) performs direct CoreAudio calls and config writes, then posts a `requestStatus` distributed notification so the daemon re-reads state and broadcasts `statusChanged`. MicGuard automatically enables "Launch at Login" on first install. You can toggle it off in Settings or System Settings → Login Items.
 
 ## Requirements
 
