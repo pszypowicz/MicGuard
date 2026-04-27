@@ -18,7 +18,21 @@ cp Sources/MicGuard/Info.plist "$APP/Info.plist"
 cp Resources/MicGuard.icns "$APP/Resources/MicGuard.icns"
 cp Resources/com.pszypowicz.MicGuard.agent.plist "$APP/Library/LaunchAgents/"
 
-codesign --sign - --force --options runtime .build/MicGuard.app
+# Codesign with hardened runtime. Identity defaults to ad-hoc ("-") so local
+# `make build` works without a Developer ID; the release workflow exports
+# SIGNING_IDENTITY="Developer ID Application: ..." and ENTITLEMENTS to produce
+# a notarizable bundle. --timestamp is required for notarization, but only
+# valid when signing with a real identity (not ad-hoc).
+SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
+ENTITLEMENTS="${ENTITLEMENTS:-}"
+sign_args=(--force --options runtime --sign "$SIGNING_IDENTITY")
+if [[ "$SIGNING_IDENTITY" != "-" ]]; then
+    sign_args+=(--timestamp)
+fi
+if [[ -n "$ENTITLEMENTS" ]]; then
+    sign_args+=(--entitlements "$ENTITLEMENTS")
+fi
+codesign "${sign_args[@]}" .build/MicGuard.app
 
 # Create bin/mic-guard symlink for CLI usage (included in zip for cask binary stanza)
 mkdir -p .build/bin
