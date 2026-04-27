@@ -7,13 +7,18 @@ name: Release
 #   P12_PASSWORD                    - password protecting the .p12
 #   KEYCHAIN_PASSWORD               - random string for the temporary keychain
 #   SIGNING_IDENTITY                - "Developer ID Application: Name (TEAMID)"
-#   APPLE_ID                        - Apple ID email used for notarization
-#   APPLE_TEAM_ID                   - 10-char Developer team identifier
-#   APPLE_APP_SPECIFIC_PASSWORD     - from appleid.apple.com
+#   APP_STORE_CONNECT_KEY_BASE64    - base64 of the .p8 App Store Connect API key
+#   APP_STORE_CONNECT_KEY_ID        - 10-char Key ID
+#   APP_STORE_CONNECT_ISSUER        - issuer UUID
 #
-# The published zip is built by ditto post-staple so the notarization
-# ticket travels with the archive and Gatekeeper accepts the bundle
-# offline on first launch.
+# Required GitHub Environment: `release`. The job binds to it so a tag push
+# pauses for manual approval before any signing material is decrypted on the
+# runner. Configure the environment at Settings -> Environments -> release
+# with required reviewer = the repo owner.
+#
+# The published zip is built by `zip -ry` post-staple so the notarization
+# ticket travels with the archive and Gatekeeper accepts the bundle offline
+# on first launch.
 
 on:
   push:
@@ -25,6 +30,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    environment: release
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
@@ -52,6 +58,15 @@ jobs:
               -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
           rm -f "$CERT_PATH"
 
+      - name: Write App Store Connect API key
+        env:
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          echo "$APP_STORE_CONNECT_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+
       - name: Build, sign, and zip
         env:
           SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
@@ -60,14 +75,13 @@ jobs:
 
       - name: Notarize, staple, and refresh zip
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER }}
         run: |
           scripts/release-notarize.sh \
-              --apple-id "$APPLE_ID" \
-              --team-id "$APPLE_TEAM_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD"
+              --key "$RUNNER_TEMP/AuthKey.p8" \
+              --key-id "$APP_STORE_CONNECT_KEY_ID" \
+              --issuer "$APP_STORE_CONNECT_ISSUER"
 
       - name: Verify signature and notarization
         run: |
@@ -81,10 +95,12 @@ jobs:
         with:
           files: .build/MicGuard.zip
 
-      - name: Clean up keychain
+      - name: Clean up secrets on runner
         if: always()
         run: |
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
           if [[ -f "$KEYCHAIN_PATH" ]]; then
               security delete-keychain "$KEYCHAIN_PATH" || true
           fi
+          rm -f "$KEY_PATH"
