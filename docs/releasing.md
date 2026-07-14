@@ -10,7 +10,11 @@ How to publish a new MicGuard version to Homebrew.
 
 ## Versioning
 
-The app version is derived from the latest git tag at build time. `scripts/bundle.sh` runs `git describe --tags` and stamps the result into `Info.plist` via `PlistBuddy`. The source `Info.plist` contains a `0.0.0-dev` placeholder — do not hardcode a version there.
+The app version is derived from the latest git tag at build time. `scripts/bundle.sh` runs `git describe --tags` and stamps the result into `Info.plist` via `PlistBuddy`. The source `Info.plist` contains a `0.0.0-dev` placeholder - do not hardcode a version there.
+
+## Signing
+
+Release builds are ad-hoc signed (`codesign --sign -` in `scripts/bundle.sh`) by design. Distribution happens through the Homebrew cask, whose postflight clears the quarantine flag on install, so users never hit the Gatekeeper block that ad-hoc signatures would otherwise trigger.
 
 ## 1. Tag and push
 
