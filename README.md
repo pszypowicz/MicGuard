@@ -36,7 +36,6 @@ On first launch the current input device becomes your preferred mic. You can cha
 - **Auto-revert** - reverts unwanted input device switches caused by Bluetooth connections
 - **Mute / volume control** - toggle mute and set input volume via CLI
 - **CLI tool** - `mic-guard` binary for scripting (`list`, `set`, `enable`, `toggle`, `mute`, `volume`, etc.)
-- **SketchyBar integration** - reference plugin with shield + mic items, device picker popup, and mute on click
 - **Distributed notifications** - real-time status broadcasts for custom integrations
 
 ## Demo
@@ -53,8 +52,6 @@ AirPods connecting hijacks your input device. MicGuard reverts it instantly.
   <img src="docs/images/menubar.png" width="240" alt="Menubar popup">
   &nbsp;&nbsp;
   <img src="docs/images/settings.png" width="360" alt="Settings view">
-  &nbsp;&nbsp;
-  <img src="docs/images/sketchybar.png" width="240" alt="SketchyBar device picker">
 </p>
 
 ## Modes
