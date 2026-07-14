@@ -4,10 +4,9 @@ title: Debugging
 
 # Debugging
 
-MicGuard uses Apple's [unified logging system](https://developer.apple.com/documentation/os/logging) (`os.Logger`) with subsystem `com.pszypowicz.MicGuard`. This is the macOS equivalent of `journalctl` on Linux — all log messages go to a centralized system log store that you can query, stream, and filter.
+MicGuard uses Apple's [unified logging system](https://developer.apple.com/documentation/os/logging) (`os.Logger`) with subsystem `com.pszypowicz.MicGuard`. This is the macOS equivalent of `journalctl` on Linux - all log messages go to a centralized system log store that you can query, stream, and filter.
 
 [Home](index.md) · [CLI Reference](cli.md) · [Integrations](integrations.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
-
 
 ## Viewing logs
 
@@ -17,7 +16,7 @@ MicGuard uses Apple's [unified logging system](https://developer.apple.com/docum
 log stream --predicate 'subsystem == "com.pszypowicz.MicGuard"' --level debug
 ```
 
-This streams all MicGuard messages (debug, info, and error) as they happen — similar to `journalctl -f`. Press `Ctrl-C` to stop.
+This streams all MicGuard messages (debug, info, and error) as they happen - similar to `journalctl -f`. Press `Ctrl-C` to stop.
 
 To see only important messages (info and error), omit `--level debug`:
 
@@ -46,17 +45,17 @@ You can also use the built-in Console app:
 
 MicGuard uses three log levels:
 
-| Level | Persistence | Used for |
-|-------|-------------|----------|
+| Level   | Persistence                                   | Used for                                                                                       |
+| ------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `debug` | Memory only, near-zero cost when not observed | Volume/mute changes, listener register/unregister, status notifications, "no action" decisions |
-| `info` | Memory, persisted on error | Startup, config changes, device preference changes, enforcement actions |
-| `error` | Always persisted to disk | Failed listener registration, failed device set, failed config writes |
+| `info`  | Memory, persisted on error                    | Startup, config changes, device preference changes, enforcement actions                        |
+| `error` | Always persisted to disk                      | Failed listener registration, failed device set, failed config writes                          |
 
 Debug messages are only captured when a consumer is attached (e.g. `log stream --level debug` or Console.app with debug enabled). This means high-frequency events like volume slider changes have near-zero overhead during normal operation.
 
 ## Duplicate CoreAudio callbacks
 
-When a Bluetooth device connects or disconnects, CoreAudio fires `DEVICE_LIST_CHANGED` and `DEFAULT_INPUT_CHANGED` notifications multiple times — typically two or three times per event. This is normal macOS behavior (CoreAudio notifies once per internal phase of the Bluetooth negotiation) and not a MicGuard bug.
+When a Bluetooth device connects or disconnects, CoreAudio fires `DEVICE_LIST_CHANGED` and `DEFAULT_INPUT_CHANGED` notifications multiple times - typically two or three times per event. This is normal macOS behavior (CoreAudio notifies once per internal phase of the Bluetooth negotiation) and not a MicGuard bug.
 
 You will see duplicate log lines like:
 
@@ -65,7 +64,7 @@ DEVICE_LIST_CHANGED: added=["AirPods Pro 3 (Przemek)"] removed=[]
 DEVICE_LIST_CHANGED: added=["AirPods Pro 3 (Przemek)"] removed=[]
 ```
 
-The handlers are idempotent — the second call is harmless since the device was already added to the tracked set on the first call.
+The handlers are idempotent - the second call is harmless since the device was already added to the tracked set on the first call.
 
 ## Running from the terminal
 
@@ -76,7 +75,7 @@ To run MicGuard directly from a terminal (useful during development):
 /Applications/MicGuard.app/Contents/MacOS/MicGuard
 ```
 
-MicGuard acquires an `fcntl` advisory lock on `~/.config/mic-guard/lock` at startup. If another instance is already running, the new process logs the existing PID and exits immediately. The lock is kernel-managed — it is released automatically when the process exits, crashes, or is killed (including `SIGKILL`). The lock file itself persists on disk but does not block the next launch; only an active file descriptor holding the lock does.
+MicGuard acquires an `fcntl` advisory lock on `~/.config/mic-guard/lock` at startup. If another instance is already running, the new process logs the existing PID and exits immediately. The lock is kernel-managed - it is released automatically when the process exits, crashes, or is killed (including `SIGKILL`). The lock file itself persists on disk but does not block the next launch; only an active file descriptor holding the lock does.
 
 Since MicGuard uses `os.Logger` instead of stderr, you won't see log output directly in the terminal. Use `log stream` in a separate terminal tab to observe the logs.
 
@@ -93,6 +92,7 @@ make dev
 ```
 
 This:
+
 1. Builds a release `.app` bundle (`scripts/bundle.sh`)
 2. Adds `ProgramArguments` to the embedded LaunchAgent plist (launchd needs the absolute path; `SMAppService` resolves it automatically but raw `launchctl` doesn't)
 3. Registers the LaunchAgent via `launchctl bootstrap`
@@ -108,17 +108,17 @@ This kills the daemon and unregisters the LaunchAgent from launchd.
 
 ### Why not Xcode debug?
 
-When Xcode launches MicGuard directly, the binary runs outside of launchd's context — no LaunchAgent plist is loaded, so the Mach service isn't advertised. To test the daemon UI (menu bar, settings, CoreAudio listeners), Xcode debug works fine. To test XPC communication, use `make dev`.
+When Xcode launches MicGuard directly, the binary runs outside of launchd's context - no LaunchAgent plist is loaded, so the Mach service isn't advertised. To test the daemon UI (menu bar, settings, CoreAudio listeners), Xcode debug works fine. To test XPC communication, use `make dev`.
 
 ## Example debugging session
 
-Terminal tab 1 — start streaming logs:
+Terminal tab 1 - start streaming logs:
 
 ```bash
 log stream --predicate 'subsystem == "com.pszypowicz.MicGuard"' --level debug
 ```
 
-Terminal tab 2 — start the dev daemon:
+Terminal tab 2 - start the dev daemon:
 
 ```bash
 make dev
@@ -126,7 +126,7 @@ make dev
 
 Tab 1 will show startup messages including device enforcement, volume changes, notification handling, and any errors as they occur.
 
-Terminal tab 3 — test CLI commands:
+Terminal tab 3 - test CLI commands:
 
 ```bash
 .build/bin/mic-guard list
@@ -152,22 +152,22 @@ If MicGuard cannot find the preferred device (e.g. it was disconnected), it will
 
 MicGuard auto-enables "Launch at Login" on first install via `SMAppService.mainApp`. If it's not starting at login:
 
-1. Check **System Settings → General → Login Items** — ensure MicGuard is listed and enabled
+1. Check **System Settings → General → Login Items** - ensure MicGuard is listed and enabled
 2. Try removing and re-adding: toggle "Launch at Login" off in MicGuard Settings, then back on
-3. If MicGuard doesn't appear in the list, launch it manually — the login item will be registered automatically on the next daemon start
+3. If MicGuard doesn't appear in the list, launch it manually - the login item will be registered automatically on the next daemon start
 
 ### Mute not working
 
-If clicking mute in sketchybar (or running `mic-guard mute`) doesn't silence the mic:
+If running `mic-guard mute` doesn't silence the mic:
 
 1. Check MicGuard is running: `pgrep -x MicGuard`
 2. Stream logs and trigger mute to trace the full flow:
 
 ```bash
-# Tab 1 — stream logs
+# Tab 1 - stream logs
 log stream --predicate 'subsystem == "com.pszypowicz.MicGuard"' --level debug
 
-# Tab 2 — trigger mute
+# Tab 2 - trigger mute
 mic-guard mute
 ```
 
@@ -188,4 +188,3 @@ rm -rf ~/.config/mic-guard
 ```
 
 Then relaunch MicGuard. It will re-create the config directory and initialize with the current input device as the preferred mic.
-

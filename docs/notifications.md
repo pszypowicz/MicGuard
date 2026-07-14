@@ -10,21 +10,20 @@ MicGuard posts macOS distributed notifications that any app or script can observ
 
 ## Notification reference
 
-| Notification | Direction | Posted when |
-|---|---|---|
-| `com.pszypowicz.MicGuard.statusChanged` | Outbound | Volume change, mute toggle, enabled toggle, device plug/unplug, default device switch, app launch, CLI command response |
-| `com.pszypowicz.MicGuard.appTerminated` | Outbound | The app is about to quit |
-| `com.pszypowicz.MicGuard.requestStatus` | Inbound | CLI `ping` command (or any external process) asks the daemon to re-broadcast status |
+| Notification                            | Direction | Posted when                                                                                                             |
+| --------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `com.pszypowicz.MicGuard.statusChanged` | Outbound  | Volume change, mute toggle, enabled toggle, device plug/unplug, default device switch, app launch, CLI command response |
+| `com.pszypowicz.MicGuard.appTerminated` | Outbound  | The app is about to quit                                                                                                |
+| `com.pszypowicz.MicGuard.requestStatus` | Inbound   | CLI `ping` command (or any external process) asks the daemon to re-broadcast status                                     |
 
 CLI commands perform direct work (CoreAudio calls, config writes) and then post a `requestStatus` notification so the daemon re-reads state and broadcasts `statusChanged`. To request a status broadcast from an external integration, use `mic-guard ping`.
-
 
 ## Payload schema
 
 ### `statusChanged` userInfo
 
-| Key | Type | Values |
-|-----|------|--------|
+| Key    | Type   | Values                                                 |
+| ------ | ------ | ------------------------------------------------------ |
 | `info` | String | JSON string containing the unified payload (see below) |
 
 The `info` value is a JSON-serialized string with the following structure:
@@ -46,17 +45,17 @@ The `info` value is a JSON-serialized string with the following structure:
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `enabled` | Boolean | Whether MicGuard device enforcement is active |
-| `mode` | String | Current mode: `"auto"` or `"manual"` |
-| `devices` | Array | All input devices, sorted alphabetically by name |
-| `devices[].name` | String | Device name |
-| `devices[].current` | Boolean | `true` if this is the active input device |
-| `devices[].volume` | Integer | Input volume 0–100 |
-| `devices[].muted` | Boolean | Native mute flag state |
+| Field                 | Type    | Description                                                                                               |
+| --------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| `enabled`             | Boolean | Whether MicGuard device enforcement is active                                                             |
+| `mode`                | String  | Current mode: `"auto"` or `"manual"`                                                                      |
+| `devices`             | Array   | All input devices, sorted alphabetically by name                                                          |
+| `devices[].name`      | String  | Device name                                                                                               |
+| `devices[].current`   | Boolean | `true` if this is the active input device                                                                 |
+| `devices[].volume`    | Integer | Input volume 0–100                                                                                        |
+| `devices[].muted`     | Boolean | Native mute flag state                                                                                    |
 | `devices[].available` | Boolean | `true` if the device is currently connected (the preferred device appears with `false` when disconnected) |
-| `devices[].preferred` | Boolean | `true` if this is the configured preferred device |
+| `devices[].preferred` | Boolean | `true` if this is the configured preferred device                                                         |
 
 Volume and mute changes are debounced (100ms) before posting.
 
@@ -97,24 +96,12 @@ center.addObserver(
 }
 ```
 
-### Shell (SketchyBar)
+### Shell
 
-SketchyBar can subscribe to distributed notifications as custom events:
-
-```bash
-# Register the distributed notification as a SketchyBar event
-sketchybar --add event mic_status_changed "com.pszypowicz.MicGuard.statusChanged"
-
-# Subscribe an item to the event
-sketchybar --subscribe mic mic_status_changed
-```
-
-### Shell (generic)
-
-You can observe notifications from the command line using `notificationlistener` or similar tools, but the most practical approach is through an app that supports distributed notification subscriptions (like SketchyBar, Hammerspoon, or a custom Swift script).
+You can observe notifications from the command line using `notificationlistener` or similar tools, but the most practical approach is through an app that supports distributed notification subscriptions (like Hammerspoon or a custom Swift script).
 
 ## Use cases
 
-- **Menubar indicators** — show the current mic name, mute state, or enabled/disabled status
-- **Automation** — trigger scripts when the mic changes (e.g. adjust audio routing)
-- **Logging** — record device change events for debugging audio issues
+- **Menubar indicators** - show the current mic name, mute state, or enabled/disabled status
+- **Automation** - trigger scripts when the mic changes (e.g. adjust audio routing)
+- **Logging** - record device change events for debugging audio issues
