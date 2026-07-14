@@ -46,14 +46,6 @@ AirPods connecting hijacks your input device. MicGuard reverts it instantly.
   <img src="docs/images/how-it-works.svg" width="830" alt="Side-by-side animation: without MicGuard the input stays hijacked by AirPods; with MicGuard it snaps back to the preferred microphone">
 </p>
 
-## Screenshots
-
-<p align="center">
-  <img src="docs/images/menubar.png" width="240" alt="Menubar popup">
-  &nbsp;&nbsp;
-  <img src="docs/images/settings.png" width="360" alt="Settings view">
-</p>
-
 ## Modes
 
 MicGuard has two device enforcement modes, configurable in Settings or via `mic-guard set`:
