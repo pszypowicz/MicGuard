@@ -6,21 +6,21 @@ title: CLI Reference
 
 MicGuard doubles as a CLI tool. The `mic-guard` binary is symlinked to `/usr/local/bin` on install.
 
-Commands perform direct work — CoreAudio calls for volume/mute, config file writes for set/enable/disable/toggle — and then post a `requestStatus` distributed notification so the daemon re-reads state and broadcasts `statusChanged`. The daemon is not required for the commands themselves to take effect, but without it no `statusChanged` notification will be broadcast to external integrations.
+Commands perform direct work - CoreAudio calls for volume/mute, config file writes for set/enable/disable/toggle - and then post a `requestStatus` distributed notification so the daemon re-reads state and broadcasts `statusChanged`. The daemon is not required for the commands themselves to take effect, but without it no `statusChanged` notification will be broadcast to external integrations.
 
 [Home](index.md) · [Debugging](debugging.md) · [Integrations](integrations.md) · [Notifications](notifications.md) · [Releasing](releasing.md)
 
 ## Exit codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Error (invalid arguments, device not found, etc.) |
+| Code | Meaning                                           |
+| ---- | ------------------------------------------------- |
+| `0`  | Success                                           |
+| `1`  | Error (invalid arguments, device not found, etc.) |
 
 ## Global flags
 
-| Flag | Description |
-|------|-------------|
+| Flag            | Description                  |
+| --------------- | ---------------------------- |
 | `-q`, `--quiet` | Suppress confirmation output |
 
 ## Commands
@@ -58,13 +58,13 @@ $ mic-guard list --output json
 ]
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | String | Device name |
-| `current` | Boolean | `true` if this is the active input device |
+| Field       | Type    | Description                                       |
+| ----------- | ------- | ------------------------------------------------- |
+| `name`      | String  | Device name                                       |
+| `current`   | Boolean | `true` if this is the active input device         |
 | `preferred` | Boolean | `true` if this is the configured preferred device |
-| `volume` | Integer | Input volume 0–100 |
-| `muted` | Boolean | Mute state |
+| `volume`    | Integer | Input volume 0–100                                |
+| `muted`     | Boolean | Mute state                                        |
 
 ### `mic-guard current`
 
@@ -141,7 +141,7 @@ disabled
 
 ### `mic-guard ping`
 
-Ask the running MicGuard daemon to re-broadcast its current status via a `com.pszypowicz.MicGuard.statusChanged` distributed notification. Useful for forcing external integrations (e.g. SketchyBar) to refresh.
+Ask the running MicGuard daemon to re-broadcast its current status via a `com.pszypowicz.MicGuard.statusChanged` distributed notification. Useful for forcing external integrations to refresh.
 
 ```bash
 $ mic-guard ping

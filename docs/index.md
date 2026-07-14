@@ -14,9 +14,7 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 
 AirPods connecting hijacks your input device. MicGuard reverts it instantly.
 
-| MicGuard disabled | MicGuard enabled |
-|---|---|
-| ![MicGuard disabled](images/demo-micguard-disabled.gif) | ![MicGuard enabled](images/demo-micguard-enabled.gif) |
+<img src="images/how-it-works.svg" alt="Side-by-side animation: without MicGuard the input stays hijacked by AirPods; with MicGuard it snaps back to the preferred microphone">
 
 ## How it works
 
@@ -53,10 +51,10 @@ Click the shield+mic icon in the menubar to:
 
 All config lives in `~/.config/mic-guard/`:
 
-| File | Purpose |
-|------|---------|
-| `preferred-mic` | Exact name of your preferred input device |
-| `enabled` | `1` or `0` — whether MicGuard is active |
-| `mode` | `auto` or `manual` — device enforcement strategy (default: `auto`) |
+| File             | Purpose                                                                                                                    |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `preferred-mic`  | Exact name of your preferred input device                                                                                  |
+| `enabled`        | `1` or `0` - whether MicGuard is active                                                                                    |
+| `mode`           | `auto` or `manual` - device enforcement strategy (default: `auto`)                                                         |
 | `settle-seconds` | Seconds to wait before accepting a device switch as user-initiated (1–30, default: `2`; the Settings UI slider caps at 10) |
-| `lock` | `fcntl` advisory lock file — prevents duplicate daemon instances (kernel-managed, no manual cleanup needed) |
+| `lock`           | `fcntl` advisory lock file - prevents duplicate daemon instances (kernel-managed, no manual cleanup needed)                |
