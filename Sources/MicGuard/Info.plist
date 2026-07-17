@@ -7,7 +7,7 @@
     <key>CFBundleIconFile</key>
     <string>MicGuard</string>
     <key>CFBundleIdentifier</key>
-    <string>com.pszypowicz.MicGuard</string>
+    <string>cz.szypowi.micguard</string>
     <key>CFBundleName</key>
     <string>MicGuard</string>
     <key>CFBundlePackageType</key>

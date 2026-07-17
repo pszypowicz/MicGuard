@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum MenuBarIcon {
-    static func image(enabled: Bool) -> NSImage {
+    static func image() -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
             let w = rect.width
@@ -64,16 +64,6 @@ enum MenuBarIcon {
             base.line(to: NSPoint(x: w * 0.64, y: stemBottom))
             base.lineWidth = 1.1
             base.stroke()
-
-            // Slash when disabled
-            if !enabled {
-                let slash = NSBezierPath()
-                slash.move(to: NSPoint(x: w * 0.82, y: h * 0.9))
-                slash.line(to: NSPoint(x: w * 0.18, y: h * 0.1))
-                slash.lineWidth = 1.6
-                slash.lineCapStyle = .round
-                slash.stroke()
-            }
 
             return true
         }

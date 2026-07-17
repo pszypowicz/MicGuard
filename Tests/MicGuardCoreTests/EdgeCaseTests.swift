@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct EdgeCaseTests {
 
-    @Test("No preferred device + new device connects — accepts without crash")
+    @Test("No preferred device + new device connects - accepts without crash")
     func noPreferredAccepts() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "",
@@ -25,9 +25,9 @@ struct EdgeCaseTests {
         #expect(mockAudio.setInputDeviceCalls.isEmpty)
     }
 
-    @Test("Device list changes but default unchanged — no action")
+    @Test("Device list changes but default unchanged - no action")
     func deviceListChangeDefaultUnchanged() {
-        let (monitor, mockAudio, mockConfig) = makeMonitor(
+        let (monitor, mockAudio, prefs) = makeMonitor(
             preferred: "MacBook Pro Microphone",
             current: macbook,
             devices: [macbook]
@@ -46,10 +46,10 @@ struct EdgeCaseTests {
         monitor.handleDefaultInputChanged()
 
         #expect(mockAudio.setInputDeviceCalls.isEmpty)
-        #expect(mockConfig.writePreferredDeviceCalls.isEmpty)
+        #expect(prefs.preferredDevice == "MacBook Pro Microphone")
     }
 
-    @Test("Non-current device disconnects — device list updated")
+    @Test("Non-current device disconnects - device list updated")
     func nonCurrentDeviceDisconnects() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "MacBook Pro Microphone",
@@ -71,7 +71,7 @@ struct EdgeCaseTests {
         #expect(!monitor.previousDeviceIDs.contains(airpods.id))
     }
 
-    @Test("setInputDevice fails — stays on current")
+    @Test("setInputDevice fails - stays on current")
     func setInputDeviceFails() {
         let (monitor, mockAudio, _) = makeMonitor(
             preferred: "MacBook Pro Microphone",

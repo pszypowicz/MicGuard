@@ -1,3 +1,3 @@
 import os
 
-public let logger = Logger(subsystem: "com.pszypowicz.MicGuard", category: "general")
+public let logger = Logger(subsystem: "cz.szypowi.micguard", category: "general")

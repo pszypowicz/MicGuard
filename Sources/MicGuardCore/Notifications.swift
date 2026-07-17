@@ -1,7 +1,9 @@
 import Foundation
 
+/// One-way telemetry for personal integrations (e.g. SketchyBar). MicGuard
+/// only tells - there is no notification that controls it.
 public enum MicGuardNotification {
-    public static let statusChanged = NSNotification.Name("com.pszypowicz.MicGuard.statusChanged")
-    public static let appTerminated = NSNotification.Name("com.pszypowicz.MicGuard.appTerminated")
-    public static let requestStatus = NSNotification.Name("com.pszypowicz.MicGuard.requestStatus")
+    /// Distributed notification posted when the current input device or its
+    /// muted state changes. userInfo: "device" (name), "muted" ("true"/"false").
+    public static let statusChanged = Notification.Name("cz.szypowi.micguard.statusChanged")
 }
