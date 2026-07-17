@@ -59,55 +59,9 @@ public enum AudioDevices {
         ) == noErr
     }
 
-    public static func setInputVolume(for deviceID: AudioDeviceID, volume: Int) -> Bool {
-        let scalar = Float32(min(max(volume, 0), 100)) / 100.0
-        for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {
-            var address = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyVolumeScalar,
-                mScope: kAudioDevicePropertyScopeInput,
-                mElement: element
-            )
-            guard AudioObjectHasProperty(deviceID, &address) else { continue }
-            var value = scalar
-            let status = AudioObjectSetPropertyData(
-                deviceID, &address, 0, nil,
-                UInt32(MemoryLayout<Float32>.size), &value
-            )
-            return status == noErr
-        }
-        return false
-    }
-
-    public static func isInputMuted(for deviceID: AudioDeviceID) -> Bool? {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyMute,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        guard AudioObjectHasProperty(deviceID, &address) else { return nil }
-        var muted: UInt32 = 0
-        var size = UInt32(MemoryLayout<UInt32>.size)
-        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &muted) == noErr
-        else { return nil }
-        return muted != 0
-    }
-
-    public static func setInputMuted(for deviceID: AudioDeviceID, muted: Bool) -> Bool {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyMute,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        guard AudioObjectHasProperty(deviceID, &address) else { return false }
-        var value: UInt32 = muted ? 1 : 0
-        return AudioObjectSetPropertyData(
-            deviceID, &address, 0, nil,
-            UInt32(MemoryLayout<UInt32>.size), &value
-        ) == noErr
-    }
-
     public static func inputVolume(for deviceID: AudioDeviceID) -> Int? {
-        // Try master channel (element 0) first, then fall back to first channel (element 1)
+        // Try master channel (element 0) first, then fall back to first channel
+        // (AirPods and some BT devices only expose volume on element 1).
         for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {
             var address = AudioObjectPropertyAddress(
                 mSelector: kAudioDevicePropertyVolumeScalar,
@@ -124,25 +78,18 @@ public enum AudioDevices {
         return nil
     }
 
-    public static func transportType(for deviceID: AudioDeviceID) -> String {
+    public static func isInputMuted(for deviceID: AudioDeviceID) -> Bool? {
         var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyTransportType,
-            mScope: kAudioObjectPropertyScopeGlobal,
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
             mElement: kAudioObjectPropertyElementMain
         )
-        var transportType: UInt32 = 0
+        guard AudioObjectHasProperty(deviceID, &address) else { return nil }
+        var muted: UInt32 = 0
         var size = UInt32(MemoryLayout<UInt32>.size)
-        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &transportType) == noErr
-        else { return "unknown" }
-
-        switch transportType {
-        case kAudioDeviceTransportTypeBuiltIn: return "built-in"
-        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return "bluetooth"
-        case kAudioDeviceTransportTypeUSB: return "usb"
-        case kAudioDeviceTransportTypeVirtual: return "virtual"
-        case kAudioDeviceTransportTypeAggregate: return "aggregate"
-        default: return "unknown"
-        }
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &muted) == noErr
+        else { return nil }
+        return muted != 0
     }
 
     private static func deviceName(_ id: AudioDeviceID) -> String? {

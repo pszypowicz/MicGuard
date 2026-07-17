@@ -26,7 +26,7 @@ struct ManualModeTests {
         #expect(monitor.currentDevice == "MacBook Pro Microphone")
     }
 
-    @Test("Preferred disconnected — stays on current device")
+    @Test("Preferred disconnected - stays on current device")
     func preferredDisconnectedStaysOnCurrent() {
         // Preferred is USB mic but it's not connected
         let (monitor, mockAudio, _) = makeMonitor(
@@ -48,7 +48,7 @@ struct ManualModeTests {
 
     @Test("setPreferredDevice switches immediately")
     func setPreferredDeviceSwitches() {
-        let (monitor, mockAudio, mockConfig) = makeMonitor(
+        let (monitor, mockAudio, prefs) = makeMonitor(
             mode: "manual",
             preferred: "MacBook Pro Microphone",
             current: macbook,
@@ -57,28 +57,10 @@ struct ManualModeTests {
 
         monitor.setPreferredDevice(name: "USB Microphone")
 
-        #expect(mockConfig.writePreferredDeviceCalls.contains("USB Microphone"))
+        #expect(prefs.preferredDevice == "USB Microphone")
         #expect(mockAudio.setInputDeviceCalls.contains("USB Microphone"))
         #expect(monitor.currentDevice == "USB Microphone")
         #expect(monitor.preferredDevice == "USB Microphone")
-    }
-
-    @Test("setPreferredDevice updates volume and clears mute")
-    func setPreferredDeviceUpdatesState() {
-        let (monitor, mockAudio, _) = makeMonitor(
-            mode: "manual",
-            preferred: "MacBook Pro Microphone",
-            current: macbook,
-            devices: [macbook, usbMic]
-        )
-        mockAudio.volumes[usbMic.id] = 80
-        monitor.isMuted = true
-
-        monitor.setPreferredDevice(name: "USB Microphone")
-
-        #expect(monitor.currentDevice == "USB Microphone")
-        #expect(monitor.inputVolume == 80)
-        #expect(monitor.isMuted == false)
     }
 
     @Test("Startup enforces preferred device in manual mode")
