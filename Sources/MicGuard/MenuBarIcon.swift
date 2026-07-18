@@ -68,6 +68,7 @@ enum MenuBarIcon {
             return true
         }
         image.isTemplate = true
+        image.accessibilityDescription = "MicGuard"
         return image
     }
 }

@@ -36,9 +36,11 @@ MicGuard is a macOS menubar app that monitors the default input device via CoreA
 
 On first launch the current input device becomes your preferred mic, and "Launch at Login" is enabled automatically. To disable MicGuard, quit the app.
 
+Everything is configured in the Settings window, opened from the menu bar icon. The icon itself can be hidden there; reopening the app (Finder double-click, `open -a MicGuard`) always shows Settings, so that is the way back in when the icon is hidden.
+
 ### Features
 
-- **Menubar app** - runs silently in the background with a shield+mic icon
+- **Menubar app** - runs silently in the background with a shield+mic icon (hideable in Settings)
 - **Auto-revert** - reverts unwanted input device switches caused by Bluetooth connections
 - **Self-contained** - no config files, no CLI; settings live in macOS defaults
 
@@ -52,7 +54,7 @@ AirPods connecting hijacks your input device. MicGuard reverts it instantly.
 
 ## Modes
 
-MicGuard has two device enforcement modes, switchable in the menu bar menu:
+MicGuard has two device enforcement modes, switchable in Settings:
 
 ### Auto (default)
 
@@ -60,7 +62,7 @@ Protects your preferred mic during device connect/disconnect events. If you swit
 
 ### Manual
 
-Always reverts to your chosen preferred device, no matter when or why the switch happened. Uncheck Auto Mode in the menu bar menu to pick a device.
+Always reverts to your chosen preferred device, no matter when or why the switch happened. Turn off Auto Mode in Settings to pick a device.
 
 ## Configuration
 
@@ -71,6 +73,7 @@ All settings live in macOS defaults under the `cz.szypowi.micguard` domain:
 | `preferredDevice` | Exact name of your preferred input device                                               |
 | `mode`            | `auto` or `manual` - device enforcement strategy (default: `auto`)                      |
 | `settleSeconds`   | Seconds to wait before accepting a device switch as user-initiated (1-30, default: `2`) |
+| `showMenuBarIcon` | Show the menu bar icon (default: `true`); changes apply live                            |
 
 ```bash
 defaults read cz.szypowi.micguard                          # inspect
@@ -104,7 +107,7 @@ Notes:
 Common issues:
 
 - **Preferred mic not found** - if the preferred device is disconnected, MicGuard keeps monitoring and switches back when it reconnects.
-- **Login item not starting** - check System Settings → General → Login Items; re-toggle "Launch at Login" in the menu bar menu. Launching MicGuard manually re-registers the login item.
+- **Login item not starting** - check System Settings → General → Login Items; re-toggle "Launch at Login" in MicGuard's Settings.
 - **Reset** - `defaults delete cz.szypowi.micguard`, then relaunch; the current input device becomes the preferred mic again.
 
 ## License
