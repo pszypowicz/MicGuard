@@ -53,33 +53,6 @@ struct AboutView: View {
     }
 
     static func showWindow() {
-        let windowID = "about-micguard"
-
-        // Reuse existing window if open
-        if let existing = NSApp.windows.first(where: { $0.identifier?.rawValue == windowID }) {
-            existing.level = .floating
-            existing.makeKeyAndOrderFront(nil)
-            NSApp.activate()
-            return
-        }
-
-        let hostingView = NSHostingView(rootView: AboutView())
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        let fittingSize = hostingView.fittingSize
-
-        let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: fittingSize),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.identifier = NSUserInterfaceItemIdentifier(windowID)
-        window.title = "About MicGuard"
-        window.contentView = hostingView
-        window.center()
-        window.isReleasedWhenClosed = false
-        window.level = .floating
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        UtilityWindow.show(id: "about-micguard", title: "About MicGuard", content: AboutView())
     }
 }
