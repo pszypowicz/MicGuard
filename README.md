@@ -18,6 +18,12 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 brew install pszypowicz/tap/mic-guard
 ```
 
+Release builds are signed with a Developer ID certificate and notarized, so Gatekeeper accepts them as-is.
+
+### Direct download
+
+Grab `MicGuard.dmg` from the [latest release](https://github.com/pszypowicz/MicGuard/releases/latest), open it, and drag MicGuard into Applications.
+
 ### Build from source
 
 ```bash
@@ -100,27 +106,6 @@ Common issues:
 - **Preferred mic not found** - if the preferred device is disconnected, MicGuard keeps monitoring and switches back when it reconnects.
 - **Login item not starting** - check System Settings → General → Login Items; re-toggle "Launch at Login" in the menu bar menu. Launching MicGuard manually re-registers the login item.
 - **Reset** - `defaults delete cz.szypowi.micguard`, then relaunch; the current input device becomes the preferred mic again.
-
-## Releasing
-
-The app version comes from the latest git tag: `scripts/bundle.sh` stamps `git describe --tags` into `Info.plist` (the source plist keeps a `0.0.0-dev` placeholder). Builds are ad-hoc signed; the Homebrew cask's postflight clears the quarantine flag on install.
-
-1. Tag and push - CI builds the app and attaches `MicGuard.zip` to the release:
-
-   ```bash
-   git tag v<version>
-   git push origin v<version>
-   ```
-
-2. Compute the checksum:
-
-   ```bash
-   curl -sL https://github.com/pszypowicz/MicGuard/releases/download/v<version>/MicGuard.zip | shasum -a 256
-   ```
-
-3. Update `version` and `sha256` in `Casks/mic-guard.rb` in [`homebrew-tap`](https://github.com/pszypowicz/homebrew-tap).
-
-4. Verify with `brew update && brew upgrade mic-guard`.
 
 ## License
 
