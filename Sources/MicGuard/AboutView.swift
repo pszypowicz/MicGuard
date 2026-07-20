@@ -14,7 +14,7 @@ private let sponsorURL = URL(string: "https://github.com/sponsors/pszypowicz")!
 
 struct AboutView: View {
     private let version: String = {
-        let base = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let base = BuildMetadata.version
         return formatVersion(base: base)
     }()
 
