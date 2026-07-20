@@ -7,7 +7,10 @@
 Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS microphone.
 
 <p align="center">
-  <img src="Resources/images/how-it-works.svg" width="830" alt="Side-by-side animation: without MicGuard the input stays hijacked by AirPods; with MicGuard it snaps back to the preferred microphone">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Resources/images/how-it-works-dark.svg">
+    <img src="Resources/images/how-it-works-light.svg" width="830" alt="Side-by-side animation: without MicGuard the input stays hijacked by AirPods; with MicGuard it snaps back to the preferred microphone">
+  </picture>
 </p>
 
 > **Beta:** MicGuard is pre-1.0. Backward compatibility is not guaranteed until version 1.0.0 is reached.
