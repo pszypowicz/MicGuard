@@ -27,8 +27,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Derive version from git tag (v0.5.0 -> 0.5.0), fall back to 0.0.0-dev
-VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0-dev")
+# Version comes from the VERSION file - the single source of truth, also
+# read by the BuildMetadata plugin so the app reports the same string.
+VERSION=$(head -1 VERSION 2>/dev/null | tr -d '[:space:]')
+[ -n "$VERSION" ] || { echo "error: VERSION file missing or empty" >&2; exit 1; }
 
 swift build -c release
 
