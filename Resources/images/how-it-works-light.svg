@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 320" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Without MicGuard, connecting AirPods hijacks the input device. With MicGuard, the input snaps back to the preferred microphone.</title>
+
+  <defs>
+    <g id="bt-icon" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 -7 L0 7 M0 -7 L4 -3.5 L-4 3.5 M0 7 L4 3.5 L-4 -3.5" stroke-width="1.6"/>
+    </g>
+    <g id="laptop-icon" fill="none" stroke="#656d76" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="-8" y="-7" width="16" height="10" rx="1.5"/>
+      <path d="M-11 6 H11"/>
+    </g>
+    <path id="shield" d="M0 -8 L7 -5.2 V0.5 C7 5 4 7.8 0 9 C-4 7.8 -7 5 -7 0.5 V-5.2 Z"/>
+    <g id="radio-off">
+      <circle r="8" fill="none" stroke="#afb8c1" stroke-width="1.5"/>
+    </g>
+  </defs>
+
+  <!-- ============ LEFT PANEL: Without MicGuard ============ -->
+  <g transform="translate(10,10)">
+    <rect width="420" height="300" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+
+    <!-- header -->
+    <g transform="translate(30,30)">
+      <use href="#shield" fill="none" stroke="#656d76" stroke-width="1.6"/>
+      <path d="M-8 -9 L8 9" stroke="#656d76" stroke-width="1.6" stroke-linecap="round"/>
+    </g>
+    <text x="48" y="35" font-size="15" font-weight="600" fill="#1f2328">Without MicGuard</text>
+
+    <!-- bluetooth connect chip -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+               values="0;0;1;1;0;0" keyTimes="0;0.20;0.23;0.78;0.82;1"/>
+      <rect x="236" y="15" width="164" height="30" rx="15" fill="#0969da" fill-opacity="0.12" stroke="#0969da" stroke-opacity="0.35"/>
+      <use href="#bt-icon" transform="translate(256,30) scale(0.9)" stroke="#0969da"/>
+      <text x="270" y="34.5" font-size="12" fill="#0969da" textLength="118" lengthAdjust="spacingAndGlyphs">AirPods Pro connected</text>
+    </g>
+
+    <text x="24" y="74" font-size="10" letter-spacing="1.5" fill="#656d76" opacity="0.8">SOUND INPUT</text>
+
+    <!-- row: MacBook Pro Microphone -->
+    <g>
+      <g opacity="1">
+        <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+                 values="1;1;0;0;1;1" keyTimes="0;0.26;0.27;0.80;0.85;1"/>
+        <rect x="20" y="84" width="380" height="46" rx="10" fill="#1a7f37" fill-opacity="0.10" stroke="#1a7f37" stroke-opacity="0.4"/>
+        <circle cx="374" cy="107" r="4.5" fill="#1a7f37"/>
+      </g>
+      <use href="#laptop-icon" transform="translate(42,107)"/>
+      <text x="62" y="112" font-size="13" fill="#424a53">MacBook Pro Microphone</text>
+      <use href="#radio-off" transform="translate(374,107)"/>
+    </g>
+
+    <!-- row: AirPods Pro -->
+    <g>
+      <g opacity="0">
+        <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+                 values="0;0;1;1;0;0" keyTimes="0;0.26;0.27;0.80;0.85;1"/>
+        <rect x="20" y="138" width="380" height="46" rx="10" fill="#cf222e" fill-opacity="0.10" stroke="#cf222e" stroke-opacity="0.4"/>
+        <circle cx="374" cy="161" r="4.5" fill="#cf222e"/>
+      </g>
+      <use href="#bt-icon" transform="translate(42,161)" stroke="#656d76"/>
+      <text x="62" y="166" font-size="13" fill="#424a53">AirPods Pro</text>
+      <use href="#radio-off" transform="translate(374,161)"/>
+    </g>
+
+    <line x1="20" y1="216" x2="400" y2="216" stroke="#d0d7de"/>
+
+    <!-- status: idle -->
+    <g opacity="1">
+      <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+               values="1;1;0;0;1;1" keyTimes="0;0.30;0.32;0.82;0.87;1"/>
+      <circle cx="32" cy="244" r="4" fill="#1a7f37"/>
+      <text x="46" y="249" font-size="13" fill="#656d76">Using MacBook Pro Microphone</text>
+    </g>
+    <!-- status: hijacked -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+               values="0;0;1;1;0;0" keyTimes="0;0.32;0.34;0.80;0.85;1"/>
+      <path d="M27 239 L37 249 M37 239 L27 249" stroke="#cf222e" stroke-width="2" stroke-linecap="round"/>
+      <text x="46" y="249" font-size="13" fill="#cf222e">Mic hijacked - AirPods took over the input</text>
+    </g>
+  </g>
+
+  <!-- ============ RIGHT PANEL: With MicGuard ============ -->
+  <g transform="translate(450,10)">
+    <rect width="420" height="300" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+
+    <!-- header with shield pulse -->
+    <g transform="translate(30,30)">
+      <circle r="10" fill="none" stroke="#1a7f37" opacity="0">
+        <animate attributeName="r" dur="10s" repeatCount="indefinite"
+                 values="10;10;26;26" keyTimes="0;0.30;0.38;1"/>
+        <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+                 values="0;0;0.7;0;0" keyTimes="0;0.29;0.31;0.38;1"/>
+      </circle>
+      <g>
+        <animateTransform attributeName="transform" type="scale" dur="10s" repeatCount="indefinite"
+                          values="1;1;1.3;1;1" keyTimes="0;0.29;0.31;0.34;1"/>
+        <use href="#shield" fill="#1a7f37" fill-opacity="0.15" stroke="#1a7f37" stroke-width="1.6"/>
+        <path d="M-3 0.2 L-0.8 2.6 L3.4 -2.4" fill="none" stroke="#1a7f37" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </g>
+    <text x="48" y="35" font-size="15" font-weight="600" fill="#1f2328">With MicGuard</text>
+
+    <!-- bluetooth connect chip -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+               values="0;0;1;1;0;0" keyTimes="0;0.20;0.23;0.78;0.82;1"/>
+      <rect x="236" y="15" width="164" height="30" rx="15" fill="#0969da" fill-opacity="0.12" stroke="#0969da" stroke-opacity="0.35"/>
+      <use href="#bt-icon" transform="translate(256,30) scale(0.9)" stroke="#0969da"/>
+      <text x="270" y="34.5" font-size="12" fill="#0969da" textLength="118" lengthAdjust="spacingAndGlyphs">AirPods Pro connected</text>
+    </g>
+
+    <text x="24" y="74" font-size="10" letter-spacing="1.5" fill="#656d76" opacity="0.8">SOUND INPUT</text>
+
+    <!-- row: MacBook Pro Microphone -->
+    <g>
+      <g opacity="1">
+        <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+                 values="1;1;0;0;1;1" keyTimes="0;0.26;0.27;0.34;0.35;1"/>
+        <rect x="20" y="84" width="380" height="46" rx="10" fill="#1a7f37" fill-opacity="0.10" stroke="#1a7f37" stroke-opacity="0.4"/>
+        <circle cx="374" cy="107" r="4.5" fill="#1a7f37"/>
+      </g>
+      <use href="#laptop-icon" transform="translate(42,107)"/>
+      <text x="62" y="112" font-size="13" fill="#424a53">MacBook Pro Microphone</text>
+      <use href="#radio-off" transform="translate(374,107)"/>
+    </g>
+
+    <!-- row: AirPods Pro -->
+    <g>
+      <g opacity="0">
+        <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+                 values="0;0;1;1;0;0" keyTimes="0;0.26;0.27;0.34;0.35;1"/>
+        <rect x="20" y="138" width="380" height="46" rx="10" fill="#cf222e" fill-opacity="0.10" stroke="#cf222e" stroke-opacity="0.4"/>
+        <circle cx="374" cy="161" r="4.5" fill="#cf222e"/>
+      </g>
+      <use href="#bt-icon" transform="translate(42,161)" stroke="#656d76"/>
+      <text x="62" y="166" font-size="13" fill="#424a53">AirPods Pro</text>
+      <use href="#radio-off" transform="translate(374,161)"/>
+    </g>
+
+    <line x1="20" y1="216" x2="400" y2="216" stroke="#d0d7de"/>
+
+    <!-- status: idle -->
+    <g opacity="1">
+      <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+               values="1;1;0;0;1;1" keyTimes="0;0.30;0.32;0.82;0.87;1"/>
+      <use href="#shield" transform="translate(32,244) scale(0.75)" fill="none" stroke="#1a7f37" stroke-width="2"/>
+      <text x="46" y="249" font-size="13" fill="#656d76">Protected - preferred mic enforced</text>
+    </g>
+    <!-- status: reverted -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="10s" repeatCount="indefinite"
+               values="0;0;1;1;0;0" keyTimes="0;0.36;0.38;0.80;0.85;1"/>
+      <path d="M26 244 L31 249 L39 239" fill="none" stroke="#1a7f37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="46" y="249" font-size="13" fill="#1a7f37">Reverted to MacBook Pro Microphone instantly</text>
+    </g>
+  </g>
+</svg>
