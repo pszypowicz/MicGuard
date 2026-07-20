@@ -1,7 +1,3 @@
-<div align="center">
-  <img src="Resources/icon.png" width="128" alt="MicGuard icon">
-</div>
-
 # MicGuard
 
 Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS microphone.
