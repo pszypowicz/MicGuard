@@ -72,9 +72,8 @@ struct SettingsView: View {
                             .tag(device.name)
                     }
                 } label: {
-                    Label("Preferred Microphone", systemImage: "mic")
+                    Label("Microphone", systemImage: "mic")
                 }
-                .disabled(monitor.mode == "auto")
                 LabeledContent {
                     Text(monitor.currentDevice.isEmpty ? "Unknown" : monitor.currentDevice)
                 } label: {
