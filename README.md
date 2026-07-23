@@ -37,7 +37,7 @@ make install
 
 MicGuard is a macOS menubar app that monitors the default input device via CoreAudio. When the system switches the input (e.g. when AirPods connect), MicGuard immediately reverts to your preferred microphone.
 
-On first launch the current input device becomes your preferred mic, and "Launch at Login" is enabled automatically. To disable MicGuard, quit the app.
+On first launch the current input device becomes your preferred mic. Enable launch at login with the toggle in MicGuard's Settings (or under System Settings > General > Login Items & Extensions - both control the same macOS-managed state). To disable MicGuard, quit the app.
 
 Everything is configured in the Settings window, opened from the menu bar icon. The icon itself can be hidden there; reopening the app (Finder double-click, `open -a MicGuard`) always shows Settings, so that is the way back in when the icon is hidden.
 
