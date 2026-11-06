@@ -72,7 +72,7 @@ All settings live in macOS defaults under the `cz.szypowi.micguard` domain:
 
 ```bash
 defaults read cz.szypowi.micguard                          # inspect
-defaults write cz.szypowi.micguard settleSeconds -float 5  # tune settle period (no UI)
+defaults write cz.szypowi.micguard settleSeconds -float 5  # tune settle period (no UI, applies live)
 defaults delete cz.szypowi.micguard                        # reset everything
 ```
 
