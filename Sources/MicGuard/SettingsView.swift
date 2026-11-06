@@ -40,17 +40,25 @@ private struct InfoDot: View {
 /// activates.
 struct SettingsView: View {
     @AppStorage(Preferences.showMenuBarIconKey) private var showMenuBarIcon = true
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginStatus = SMAppService.mainApp.status
 
     private var monitor: AudioMonitor { AudioMonitor.shared }
 
     var body: some View {
         Form {
             Section {
-                Toggle(isOn: $launchAtLogin) {
+                Toggle(isOn: launchAtLoginBinding) {
                     Label("Launch at Login", systemImage: "power")
                 }
-                .onChange(of: launchAtLogin) { _, enable in setLaunchAtLogin(enable) }
+                if loginStatus == .requiresApproval {
+                    LabeledContent {
+                        Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                    } label: {
+                        Text("Allow MicGuard in Login Items to finish turning this on.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Toggle(isOn: $showMenuBarIcon) {
                     HStack(spacing: 4) {
                         Label("Show Menu Bar Icon", systemImage: "menubar.rectangle")
@@ -92,6 +100,15 @@ struct SettingsView: View {
         }
     }
 
+    // Registered but waiting for approval counts as on, so the toggle doesn't
+    // snap back and turning it off still unregisters.
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { loginStatus == .enabled || loginStatus == .requiresApproval },
+            set: { setLaunchAtLogin($0) }
+        )
+    }
+
     private var autoModeBinding: Binding<Bool> {
         Binding(
             get: { monitor.mode == "auto" },
@@ -125,11 +142,10 @@ struct SettingsView: View {
     }
 
     private func syncLaunchAtLogin() {
-        launchAtLogin = SMAppService.mainApp.status == .enabled
+        loginStatus = SMAppService.mainApp.status
     }
 
     private func setLaunchAtLogin(_ enable: Bool) {
-        guard enable != (SMAppService.mainApp.status == .enabled) else { return }
         do {
             if enable {
                 try SMAppService.mainApp.register()
@@ -139,7 +155,7 @@ struct SettingsView: View {
         } catch {
             logger.error("Login item toggle failed: \(error, privacy: .public)")
         }
-        launchAtLogin = SMAppService.mainApp.status == .enabled
+        loginStatus = SMAppService.mainApp.status
     }
 
     static func showWindow() {
