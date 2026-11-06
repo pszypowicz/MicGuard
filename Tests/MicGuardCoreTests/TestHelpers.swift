@@ -8,24 +8,32 @@ let usbMic: (id: AudioDeviceID, name: String) = (id: 3, name: "USB Microphone")
 
 let testSuiteName = "cz.szypowi.micguard.tests"
 
+/// Collects statusChanged payloads in place of the distributed notification.
+@MainActor
+final class StatusRecorder {
+    var posts: [[String: String]] = []
+}
+
 @MainActor
 func makeMonitor(
     mode: String = "auto",
     preferred: String = "MacBook Pro Microphone",
     current: (id: AudioDeviceID, name: String) = macbook,
-    devices: [(id: AudioDeviceID, name: String)] = [macbook]
+    devices: [(id: AudioDeviceID, name: String)] = [macbook],
+    status: StatusRecorder? = nil
 ) -> (monitor: AudioMonitor, audio: MockAudioDevices, prefs: Preferences) {
     let mockAudio = MockAudioDevices()
     mockAudio.devices = devices
     mockAudio.currentDefault = current
 
-    // A single shared suite, wiped per monitor: @MainActor test functions are
-    // synchronous, so they serialize and cannot wipe each other mid-test.
+    // A single shared suite, wiped per monitor. Synchronous @MainActor tests
+    // serialize, so they cannot wipe each other mid-test. An async test must
+    // not read defaults after its first await.
     let defaults = UserDefaults(suiteName: testSuiteName)!
     defaults.removePersistentDomain(forName: testSuiteName)
     let prefs = Preferences(defaults: defaults)
 
-    let monitor = AudioMonitor(audio: mockAudio, prefs: prefs)
+    let monitor = AudioMonitor(audio: mockAudio, prefs: prefs) { status?.posts.append($0) }
     monitor.mode = mode
     monitor.preferredDevice = preferred
     monitor.currentDevice = current.name

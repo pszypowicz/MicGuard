@@ -1,4 +1,5 @@
 import CoreAudio
+import Foundation
 
 public struct LiveAudioDevices: AudioDeviceProviding {
     public init() {}
@@ -15,11 +16,84 @@ public struct LiveAudioDevices: AudioDeviceProviding {
         AudioDevices.setInputDevice(name: name)
     }
 
-    public func inputVolume(for deviceID: AudioDeviceID) -> Int? {
+    public func inputVolume(for deviceID: AudioDeviceID) -> Float32? {
         AudioDevices.inputVolume(for: deviceID)
     }
 
     public func isInputMuted(for deviceID: AudioDeviceID) -> Bool? {
         AudioDevices.isInputMuted(for: deviceID)
+    }
+
+    public func observeLevel(
+        of deviceID: AudioDeviceID, onChange: @escaping @MainActor () -> Void
+    ) -> (any LevelObservation)? {
+        LiveLevelObservation(deviceID: deviceID, onChange: onChange)
+    }
+}
+
+/// CoreAudio listeners on a device's input volume and mute flag, delivered
+/// on the main queue.
+@MainActor
+final class LiveLevelObservation: LevelObservation {
+    let deviceID: AudioDeviceID
+    private var listeners: [(address: AudioObjectPropertyAddress, block: AudioObjectPropertyListenerBlock)] = []
+    private var cancelled = false
+
+    init?(deviceID: AudioDeviceID, onChange: @escaping @MainActor () -> Void) {
+        self.deviceID = deviceID
+        let handler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in
+                // A callback queued before cancel() can still arrive
+                guard let self, !self.cancelled else { return }
+                onChange()
+            }
+        }
+
+        // Check main element first, fall back to channel 1 (AirPods and some
+        // BT devices only expose volume on element 1); listen on the wildcard
+        // element to catch per-channel changes.
+        var volumeCheck = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        if !AudioObjectHasProperty(deviceID, &volumeCheck) {
+            volumeCheck.mElement = 1
+        }
+        if AudioObjectHasProperty(deviceID, &volumeCheck) {
+            listen(to: kAudioDevicePropertyVolumeScalar, handler)
+        }
+
+        var muteCheck = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        if AudioObjectHasProperty(deviceID, &muteCheck) {
+            listen(to: kAudioDevicePropertyMute, handler)
+        }
+
+        if listeners.isEmpty { return nil }
+    }
+
+    private func listen(
+        to selector: AudioObjectPropertySelector, _ block: @escaping AudioObjectPropertyListenerBlock
+    ) {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementWildcard
+        )
+        if AudioObjectAddPropertyListenerBlock(deviceID, &address, DispatchQueue.main, block) == noErr {
+            listeners.append((address, block))
+        }
+    }
+
+    func cancel() {
+        cancelled = true
+        for var listener in listeners {
+            AudioObjectRemovePropertyListenerBlock(deviceID, &listener.address, DispatchQueue.main, listener.block)
+        }
+        listeners = []
     }
 }

@@ -80,7 +80,7 @@ defaults delete cz.szypowi.micguard                        # reset everything
 
 For personal integrations (e.g. SketchyBar), MicGuard posts read-only telemetry. There is no way to control or query MicGuard externally - it only tells:
 
-- `cz.szypowi.micguard.statusChanged` - distributed notification posted on startup and whenever the current input device or its muted state changes; userInfo: `device` (name), `muted` (`"true"`/`"false"` - volume 0 or hardware mute flag)
+- `cz.szypowi.micguard.statusChanged` - distributed notification posted on startup and whenever the current input device or its muted state changes; userInfo: `device` (name, empty when there is no input device), `muted` (`"true"`/`"false"` - volume 0 or hardware mute flag)
 
 ## Debugging
 

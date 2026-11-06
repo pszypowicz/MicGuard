@@ -75,7 +75,7 @@ struct SettingsView: View {
                     Label("Microphone", systemImage: "mic")
                 }
                 LabeledContent {
-                    Text(monitor.currentDevice.isEmpty ? "Unknown" : monitor.currentDevice)
+                    Text(monitor.currentDevice.isEmpty ? "None" : monitor.currentDevice)
                 } label: {
                     Label("Current Input", systemImage: "waveform")
                 }

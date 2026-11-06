@@ -4,6 +4,7 @@ import Foundation
 /// only tells - there is no notification that controls it.
 public enum MicGuardNotification {
     /// Distributed notification posted when the current input device or its
-    /// muted state changes. userInfo: "device" (name), "muted" ("true"/"false").
+    /// muted state changes. userInfo: "device" (name, empty when there is no
+    /// input device), "muted" ("true"/"false").
     public static let statusChanged = Notification.Name("cz.szypowi.micguard.statusChanged")
 }

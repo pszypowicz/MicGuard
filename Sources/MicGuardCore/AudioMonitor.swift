@@ -16,10 +16,11 @@ public final class AudioMonitor {
     public var preferredDevice: String {
         didSet { prefs.preferredDevice = preferredDevice }
     }
+    /// Name of the current input device; empty when there is none.
     public var currentDevice: String = "" {
         didSet {
             guard currentDevice != oldValue else { return }
-            registerMuteListeners()
+            followCurrentDevice()
             debouncedBroadcastStatus()
         }
     }
@@ -33,15 +34,23 @@ public final class AudioMonitor {
     let audio: any AudioDeviceProviding
     @ObservationIgnored let prefs: Preferences
 
-    @ObservationIgnored private var volumeListenerDeviceID: AudioDeviceID?
-    @ObservationIgnored private var muteListenerDeviceID: AudioDeviceID?
-    @ObservationIgnored private var volumeListenerBlock: AudioObjectPropertyListenerBlock?
-    @ObservationIgnored private var muteListenerBlock: AudioObjectPropertyListenerBlock?
+    /// Receives each statusChanged userInfo payload.
+    public typealias StatusPoster = @MainActor (_ userInfo: [String: String]) -> Void
+    @ObservationIgnored private let postStatus: StatusPoster
+
+    /// The device behind `currentDevice`, which the level listeners watch.
+    @ObservationIgnored private var currentDeviceID: AudioDeviceID?
+    @ObservationIgnored private var levelObservation: (any LevelObservation)?
     @ObservationIgnored private var statusDebounceWork: DispatchWorkItem?
 
-    init(audio: some AudioDeviceProviding, prefs: Preferences) {
+    init(
+        audio: some AudioDeviceProviding,
+        prefs: Preferences,
+        postStatus: @escaping StatusPoster = AudioMonitor.postDistributedStatus
+    ) {
         self.audio = audio
         self.prefs = prefs
+        self.postStatus = postStatus
         self.mode = prefs.mode
         self.preferredDevice = prefs.preferredDevice
     }
@@ -56,14 +65,12 @@ public final class AudioMonitor {
             mElement: kAudioObjectPropertyElementMain
         )
 
-        let audioRef = self.audio
         let status = AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject),
             &address,
             DispatchQueue.main
         ) { [weak self] _, _ in
-            let device = audioRef.currentInputDevice()
-            logger.debug("[CoreAudio] DEFAULT_INPUT_CHANGED → '\(device?.name ?? "nil", privacy: .public)' [id=\(device?.id ?? 0, privacy: .public)]")
+            logger.debug("[CoreAudio] DEFAULT_INPUT_CHANGED")
             Task { @MainActor in
                 self?.handleDefaultInputChanged()
             }
@@ -160,12 +167,19 @@ public final class AudioMonitor {
         previousDeviceIDs = newIDs
         inputDevices = newDevices
 
-        // If current device disconnected, settle on whatever macOS picked
-        if !newDevices.contains(where: { $0.name == currentDevice }),
-           let device = audio.currentInputDevice() {
-            logger.info("Current device '\(self.currentDevice, privacy: .public)' disconnected - falling back to '\(device.name, privacy: .public)'")
-            previousDeviceIDs.insert(device.id)
-            currentDevice = device.name
+        if !newDevices.contains(where: { $0.name == currentDevice }) {
+            // Current device disconnected: settle on whatever macOS picked
+            if let device = audio.currentInputDevice() {
+                logger.info("Current device '\(self.currentDevice, privacy: .public)' disconnected - falling back to '\(device.name, privacy: .public)'")
+                previousDeviceIDs.insert(device.id)
+                currentDevice = device.name
+            } else if !currentDevice.isEmpty {
+                logger.info("Current device '\(self.currentDevice, privacy: .public)' disconnected - no input device left")
+                currentDevice = ""
+            }
+        } else if followCurrentDevice() {
+            // Same name under a new ID: the device was recreated
+            debouncedBroadcastStatus()
         }
 
         // The preferred device is back but macOS kept another default, so no
@@ -183,8 +197,12 @@ public final class AudioMonitor {
     }
 
     func handleDefaultInputChanged() {
-        guard let newDefault = audio.currentInputDevice(),
-              newDefault.name != currentDevice else { return }
+        guard let newDefault = audio.currentInputDevice() else { return }
+        guard newDefault.name != currentDevice else {
+            // Same name under a new ID: the device was reconnected or recreated
+            if followCurrentDevice() { debouncedBroadcastStatus() }
+            return
+        }
 
         let oldDevice = currentDevice
         let isKnown = previousDeviceIDs.contains(newDefault.id)
@@ -294,20 +312,23 @@ public final class AudioMonitor {
     // MARK: - Status Broadcast
 
     /// One-way telemetry for personal integrations (e.g. SketchyBar): posts
-    /// the current device name and muted state. Muted means volume 0 or the
-    /// hardware mute flag - state is read fresh on every post, never stored.
+    /// the current device name and its muted state. Muted means volume 0 or
+    /// the hardware mute flag - state is read fresh on every post, never stored.
     func broadcastStatus() {
         statusDebounceWork?.cancel()
         var muted = false
-        if let device = audio.currentInputDevice() {
-            muted = audio.isInputMuted(for: device.id) == true
-                || audio.inputVolume(for: device.id) == 0
+        if let id = currentDeviceID {
+            muted = audio.isInputMuted(for: id) == true || audio.inputVolume(for: id) == 0
         }
         logger.debug("broadcastStatus: device='\(self.currentDevice, privacy: .public)' muted=\(muted, privacy: .public)")
+        postStatus(["device": currentDevice, "muted": muted ? "true" : "false"])
+    }
+
+    public static func postDistributedStatus(_ userInfo: [String: String]) {
         DistributedNotificationCenter.default().postNotificationName(
             MicGuardNotification.statusChanged,
             object: nil,
-            userInfo: ["device": currentDevice, "muted": muted ? "true" : "false"],
+            userInfo: userInfo,
             deliverImmediately: true
         )
     }
@@ -326,87 +347,33 @@ public final class AudioMonitor {
 
     // MARK: - Volume/Mute Listeners
 
-    /// Watch the current input device's volume and hardware mute flag so mute
-    /// changes made elsewhere (System Settings, hardware buttons) show up in
-    /// the status broadcast.
-    private func registerMuteListeners() {
-        unregisterMuteListeners()
-        guard let device = audio.currentInputDevice() else { return }
-        let deviceID = device.id
+    /// Points the volume and mute listeners at the device behind
+    /// `currentDevice`, so mute changes made elsewhere (System Settings,
+    /// hardware buttons) show up in the status broadcast. The live default
+    /// wins when its name matches, which follows a device that came back
+    /// under a new ID. Otherwise the name is looked up in the device list,
+    /// which covers a switch CoreAudio hasn't applied yet. Returns true if
+    /// the device changed.
+    @discardableResult
+    private func followCurrentDevice() -> Bool {
+        var id: AudioDeviceID?
+        if !currentDevice.isEmpty {
+            if let live = audio.currentInputDevice(), live.name == currentDevice {
+                id = live.id
+            } else {
+                id = audio.listInputDevices().first { $0.name == currentDevice }?.id
+            }
+        }
+        guard id != currentDeviceID else { return false }
 
-        // Check main element first, fall back to channel 1 (AirPods and some
-        // BT devices only expose volume on element 1); listen on the wildcard
-        // element to catch per-channel changes.
-        var volumeCheck = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyVolumeScalar,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        if !AudioObjectHasProperty(deviceID, &volumeCheck) {
-            volumeCheck.mElement = 1
-        }
-        if AudioObjectHasProperty(deviceID, &volumeCheck) {
-            var address = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyVolumeScalar,
-                mScope: kAudioDevicePropertyScopeInput,
-                mElement: kAudioObjectPropertyElementWildcard
-            )
-            let handler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-                Task { @MainActor in
-                    guard let self, self.volumeListenerDeviceID == deviceID else { return }
-                    self.debouncedBroadcastStatus()
-                }
-            }
-            if AudioObjectAddPropertyListenerBlock(deviceID, &address, DispatchQueue.main, handler) == noErr {
-                volumeListenerDeviceID = deviceID
-                volumeListenerBlock = handler
+        levelObservation?.cancel()
+        levelObservation = nil
+        currentDeviceID = id
+        if let id {
+            levelObservation = audio.observeLevel(of: id) { [weak self] in
+                self?.debouncedBroadcastStatus()
             }
         }
-
-        var muteCheck = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyMute,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        if AudioObjectHasProperty(deviceID, &muteCheck) {
-            var address = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyMute,
-                mScope: kAudioDevicePropertyScopeInput,
-                mElement: kAudioObjectPropertyElementWildcard
-            )
-            let handler: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-                Task { @MainActor in
-                    guard let self, self.muteListenerDeviceID == deviceID else { return }
-                    self.debouncedBroadcastStatus()
-                }
-            }
-            if AudioObjectAddPropertyListenerBlock(deviceID, &address, DispatchQueue.main, handler) == noErr {
-                muteListenerDeviceID = deviceID
-                muteListenerBlock = handler
-            }
-        }
-    }
-
-    private func unregisterMuteListeners() {
-        if let deviceID = volumeListenerDeviceID, let block = volumeListenerBlock {
-            var address = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyVolumeScalar,
-                mScope: kAudioDevicePropertyScopeInput,
-                mElement: kAudioObjectPropertyElementWildcard
-            )
-            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, block)
-        }
-        if let deviceID = muteListenerDeviceID, let block = muteListenerBlock {
-            var address = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyMute,
-                mScope: kAudioDevicePropertyScopeInput,
-                mElement: kAudioObjectPropertyElementWildcard
-            )
-            AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, block)
-        }
-        volumeListenerDeviceID = nil
-        volumeListenerBlock = nil
-        muteListenerDeviceID = nil
-        muteListenerBlock = nil
+        return true
     }
 }
