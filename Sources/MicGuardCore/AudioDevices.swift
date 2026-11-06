@@ -59,7 +59,8 @@ public enum AudioDevices {
         ) == noErr
     }
 
-    public static func inputVolume(for deviceID: AudioDeviceID) -> Int? {
+    /// Input volume scalar, 0...1.
+    public static func inputVolume(for deviceID: AudioDeviceID) -> Float32? {
         // Try master channel (element 0) first, then fall back to first channel
         // (AirPods and some BT devices only expose volume on element 1).
         for element: UInt32 in [kAudioObjectPropertyElementMain, 1] {
@@ -73,7 +74,7 @@ public enum AudioDevices {
             var size = UInt32(MemoryLayout<Float32>.size)
             guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume) == noErr
             else { continue }
-            return Int((volume * 100).rounded())
+            return volume
         }
         return nil
     }
