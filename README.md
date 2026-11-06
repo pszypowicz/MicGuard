@@ -18,10 +18,12 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 ## Install
 
 ```bash
-brew install pszypowicz/tap/mic-guard
+brew install pszypowicz/tap/micguard
 ```
 
 Release builds are signed with a Developer ID certificate and notarized, so Gatekeeper accepts them as-is.
+
+Release candidates ship as GitHub pre-releases and through the `micguard@beta` cask, which replaces `micguard` while installed. The [tap README](https://github.com/pszypowicz/homebrew-tap#micguard) covers switching between the two and moving over from the old `mic-guard` cask.
 
 ### Direct download
 
