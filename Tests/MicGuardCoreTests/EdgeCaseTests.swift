@@ -49,6 +49,31 @@ struct EdgeCaseTests {
         #expect(prefs.preferredDevice == "MacBook Pro Microphone")
     }
 
+    @Test("Preferred reconnects while macOS keeps the fallback → switched back",
+          arguments: ["auto", "manual"])
+    func preferredReconnectRestored(mode: String) {
+        let (monitor, mockAudio, prefs) = makeMonitor(
+            mode: mode,
+            preferred: "USB Microphone",
+            current: usbMic,
+            devices: [macbook, usbMic]
+        )
+
+        // Unplug: macOS falls back to the MacBook
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
+        monitor.handleDeviceListChanged()
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+
+        // Replug: macOS keeps the MacBook, so no DEFAULT_INPUT_CHANGED follows
+        mockAudio.devices = [macbook, usbMic]
+        monitor.handleDeviceListChanged()
+
+        #expect(mockAudio.setInputDeviceCalls == ["USB Microphone"])
+        #expect(monitor.currentDevice == "USB Microphone")
+        #expect(prefs.preferredDevice == "USB Microphone")
+    }
+
     @Test("Non-current device disconnects - device list updated")
     func nonCurrentDeviceDisconnects() {
         let (monitor, mockAudio, _) = makeMonitor(

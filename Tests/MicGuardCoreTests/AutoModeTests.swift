@@ -105,6 +105,49 @@ struct AutoModeTests {
         #expect(monitor.currentDevice == "USB Microphone")
     }
 
+    @Test("Device connected without becoming default → later user switch saved as preferred")
+    func userSwitchToQuietlyConnectedDevice() {
+        let (monitor, mockAudio, prefs) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook]
+        )
+
+        // USB mic plugged in, macOS keeps the MacBook as default
+        mockAudio.devices = [macbook, usbMic]
+        monitor.handleDeviceListChanged()
+
+        // Devices settle, then the user picks the USB mic in System Settings
+        monitor.lastDeviceListChange = CFAbsoluteTimeGetCurrent() - 10
+        mockAudio.currentDefault = usbMic
+        monitor.handleDefaultInputChanged()
+
+        #expect(mockAudio.setInputDeviceCalls.isEmpty, "A deliberate switch must not be reverted")
+        #expect(monitor.currentDevice == "USB Microphone")
+        #expect(prefs.preferredDevice == "USB Microphone")
+    }
+
+    @Test("settleSeconds written while running applies to the next decision")
+    func settleSecondsReadLive() {
+        let (monitor, mockAudio, prefs) = makeMonitor(
+            preferred: "MacBook Pro Microphone",
+            current: macbook,
+            devices: [macbook, usbMic]
+        )
+
+        // 10 s since the last device activity: settled under the 2 s default,
+        // still settling under 30 s
+        UserDefaults(suiteName: testSuiteName)!.set(30.0, forKey: Preferences.settleSecondsKey)
+        monitor.lastDeviceListChange = CFAbsoluteTimeGetCurrent() - 10
+
+        mockAudio.currentDefault = usbMic
+        monitor.handleDefaultInputChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone",
+                "Should revert - still inside the 30 s settle period")
+        #expect(prefs.preferredDevice == "MacBook Pro Microphone")
+    }
+
     @Test("Switch during settle period → reverted to preferred")
     func switchDuringSettle() {
         let (monitor, mockAudio, prefs) = makeMonitor(
@@ -189,6 +232,26 @@ struct AutoModeTests {
         #expect(monitor.currentDevice == "AirPods Pro 3")
     }
 
+    @Test("Preferred disconnects, fallback reported before the list change → preferred kept")
+    func preferredDisconnectDefaultFirst() {
+        let (monitor, mockAudio, prefs) = makeMonitor(
+            preferred: "AirPods Pro 3",
+            current: airpods,
+            devices: [macbook, airpods]
+        )
+        monitor.lastDeviceListChange = CFAbsoluteTimeGetCurrent() - 10
+
+        // DEFAULT_INPUT_CHANGED (fallback) before DEVICE_LIST_CHANGED
+        mockAudio.devices = [macbook]
+        mockAudio.currentDefault = macbook
+        monitor.handleDefaultInputChanged()
+        monitor.handleDeviceListChanged()
+
+        #expect(monitor.currentDevice == "MacBook Pro Microphone")
+        #expect(prefs.preferredDevice == "AirPods Pro 3",
+                "Disconnect fallback should NOT change preferred")
+    }
+
     @Test("Rapid connect/disconnect cycles - preferred never changes")
     func rapidCycles() {
         let (monitor, mockAudio, prefs) = makeMonitor(
@@ -242,40 +305,22 @@ struct AutoModeTests {
         let (monitor, mockAudio, prefs) = makeMonitor(
             preferred: "MacBook Pro Microphone",
             current: macbook,
-            devices: [macbook, airpods]
+            devices: [macbook]
         )
 
-        // Settle period expired long ago
+        // Last device activity long ago, so only the revert itself can
+        // restart the settle period
         monitor.lastDeviceListChange = CFAbsoluteTimeGetCurrent() - 10
 
-        // BT instability bounces to AirPods (known=true, settled)
-        // Normally this would save as preferred - but the revert extends settle
-        mockAudio.currentDefault = airpods
-        monitor.handleDefaultInputChanged()
-
-        // First bounce: isSettled=true → saves as preferred... wait, that's wrong.
-        // Actually this IS the user-switch path since isSettled=true.
-        // The fix is: once we revert, settle period is extended.
-        // So for this test, we need a scenario where a revert happens FIRST,
-        // then a subsequent known=true event should NOT save.
-
-        // Reset: start with a recent revert
-        monitor.preferredDevice = "MacBook Pro Microphone"
-        monitor.currentDevice = "MacBook Pro Microphone"
-        mockAudio.currentDefault = macbook
-        mockAudio.setInputDeviceCalls = []
-
-        // Simulate: new device connects → reverted → settle extended
+        // AirPods take over before their DEVICE_LIST_CHANGED arrives: new device → reverted
         mockAudio.devices = [macbook, airpods]
         mockAudio.currentDefault = airpods
-        monitor.previousDeviceIDs = Set([macbook.id]) // AirPods is "new"
-        monitor.lastDeviceListChange = CFAbsoluteTimeGetCurrent() // recent activity
         monitor.handleDefaultInputChanged()
 
         #expect(monitor.currentDevice == "MacBook Pro Microphone", "Should revert")
 
-        // Now 6 seconds later (would exceed original 5s settle), but revert extended it
-        // So the settle period is still active from the revert timestamp
+        // AirPods are now known; a bounce back is reverted only because the
+        // revert restarted the settle period
         mockAudio.currentDefault = airpods
         monitor.handleDefaultInputChanged()
 
