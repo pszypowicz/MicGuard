@@ -21,11 +21,16 @@ identity="Developer ID Application"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --identity) identity="$2"; shift 2 ;;
+    --identity)
+      [[ $# -ge 2 ]] || { echo "error: --identity needs a value" >&2; usage >&2; exit 1; }
+      identity="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
 
 # Version comes from the VERSION file - the single source of truth, also
 # read by the BuildMetadata plugin so the app reports the same string.
@@ -41,7 +46,7 @@ mkdir -p "$APP/MacOS" "$APP/Resources"
 cp .build/release/MicGuard "$APP/MacOS/MicGuard"
 cp Sources/MicGuard/Info.plist "$APP/Info.plist"
 
-# Stamp version from git tag into Info.plist
+# Stamp the version from VERSION into Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Info.plist"
 cp Resources/MicGuard.icns "$APP/Resources/MicGuard.icns"
 
