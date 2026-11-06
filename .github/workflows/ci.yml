@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Run tests
+        run: swift test
+
+      # Ad hoc signing: the release identity is not available on CI.
+      - name: Build the app bundle
+        run: bash scripts/bundle.sh --identity adhoc
+
+  shellcheck:
+    # shellcheck ships on the Ubuntu image but not on the macOS one.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh

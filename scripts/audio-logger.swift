@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// audio-logger.swift — CoreAudio event logger for MicGuard research
+// audio-logger.swift - CoreAudio event logger for MicGuard research
 // Usage: swift scripts/audio-logger.swift
 // Logs every CoreAudio property change with timestamps. Ctrl-C to stop.
 

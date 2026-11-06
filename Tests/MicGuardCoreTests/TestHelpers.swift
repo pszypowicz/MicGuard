@@ -6,7 +6,7 @@ let macbook: (id: AudioDeviceID, name: String) = (id: 1, name: "MacBook Pro Micr
 let airpods: (id: AudioDeviceID, name: String) = (id: 2, name: "AirPods Pro 3")
 let usbMic: (id: AudioDeviceID, name: String) = (id: 3, name: "USB Microphone")
 
-private let testSuiteName = "cz.szypowi.micguard.tests"
+let testSuiteName = "cz.szypowi.micguard.tests"
 
 @MainActor
 func makeMonitor(

@@ -13,7 +13,7 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
 
 ## Requirements
 
-- macOS 15+
+- macOS 15+ on Apple Silicon
 
 ## Install
 
@@ -32,6 +32,8 @@ Grab `MicGuard.dmg` from the [latest release](https://github.com/pszypowicz/MicG
 ```bash
 make install
 ```
+
+This builds an ad hoc signed copy. To sign with one of your own certificates instead, pass part of its name, for example `make install IDENTITY="Apple Development"`.
 
 ## How it works
 
@@ -72,7 +74,7 @@ All settings live in macOS defaults under the `cz.szypowi.micguard` domain:
 
 ```bash
 defaults read cz.szypowi.micguard                          # inspect
-defaults write cz.szypowi.micguard settleSeconds -float 5  # tune settle period (no UI)
+defaults write cz.szypowi.micguard settleSeconds -float 5  # tune settle period (no UI, applies live)
 defaults delete cz.szypowi.micguard                        # reset everything
 ```
 
