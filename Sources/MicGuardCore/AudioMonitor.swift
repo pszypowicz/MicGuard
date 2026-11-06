@@ -27,7 +27,8 @@ public final class AudioMonitor {
 
     var previousDeviceIDs: Set<AudioDeviceID> = []
     var lastDeviceListChange: CFAbsoluteTime = 0
-    let settleSeconds: TimeInterval
+    /// Read on every decision, so `defaults write` applies without a relaunch.
+    var settleSeconds: TimeInterval { prefs.settleSeconds }
 
     let audio: any AudioDeviceProviding
     @ObservationIgnored let prefs: Preferences
@@ -43,7 +44,6 @@ public final class AudioMonitor {
         self.prefs = prefs
         self.mode = prefs.mode
         self.preferredDevice = prefs.preferredDevice
-        self.settleSeconds = prefs.settleSeconds
     }
 
     public func start() {
@@ -154,9 +154,10 @@ public final class AudioMonitor {
 
         lastDeviceListChange = CFAbsoluteTimeGetCurrent()
 
-        // Only remove departed devices - new devices are acknowledged
-        // in handleDefaultInputChanged after the policy decision.
-        previousDeviceIDs.formIntersection(newIDs)
+        // Listed devices count as known from here on. A takeover within
+        // settleSeconds of this change is still reverted as system noise, and
+        // a later switch to one of them is the user's choice.
+        previousDeviceIDs = newIDs
         inputDevices = newDevices
 
         // If current device disconnected, settle on whatever macOS picked
@@ -165,6 +166,19 @@ public final class AudioMonitor {
             logger.info("Current device '\(self.currentDevice, privacy: .public)' disconnected - falling back to '\(device.name, privacy: .public)'")
             previousDeviceIDs.insert(device.id)
             currentDevice = device.name
+        }
+
+        // The preferred device is back but macOS kept another default, so no
+        // DEFAULT_INPUT_CHANGED follows. Switch back here.
+        let preferred = preferredDevice
+        if !preferred.isEmpty, addedNames.contains(preferred),
+           audio.currentInputDevice()?.name != preferred {
+            if audio.setInputDevice(name: preferred) {
+                logger.info("Preferred device '\(preferred, privacy: .public)' reconnected - switching back")
+                currentDevice = preferred
+            } else {
+                logger.error("Failed to set input device to '\(preferred, privacy: .public)'")
+            }
         }
     }
 
@@ -175,6 +189,15 @@ public final class AudioMonitor {
         let oldDevice = currentDevice
         let isKnown = previousDeviceIDs.contains(newDefault.id)
         logger.debug("DEFAULT_INPUT_CHANGED: '\(oldDevice, privacy: .public)' → '\(newDefault.name, privacy: .public)' [id=\(newDefault.id, privacy: .public), known=\(isKnown, privacy: .public)]")
+
+        // If the previous device has left the list, macOS is falling back after
+        // a disconnect and reported it before DEVICE_LIST_CHANGED. Treat it as
+        // that list change, so the fallback isn't saved as the user's choice.
+        if !oldDevice.isEmpty,
+           !audio.listInputDevices().contains(where: { $0.name == oldDevice }) {
+            handleDeviceListChanged()
+            return
+        }
 
         guard mode == "auto" else {
             // Manual mode: any switch away from a connected preferred device is reverted.
