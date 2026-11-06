@@ -46,8 +46,10 @@ mkdir -p "$APP/MacOS" "$APP/Resources"
 cp .build/release/MicGuard "$APP/MacOS/MicGuard"
 cp Sources/MicGuard/Info.plist "$APP/Info.plist"
 
-# Stamp the version from VERSION into Info.plist
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Info.plist"
+# Stamp the version from VERSION into Info.plist. CFBundleShortVersionString
+# takes period-separated integers, so a prerelease suffix (0.20.0-rc.1) is
+# left out there. The About window shows the full string from BuildMetadata.
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION%%-*}" "$APP/Info.plist"
 cp Resources/MicGuard.icns "$APP/Resources/MicGuard.icns"
 
 if [[ "$identity" == "adhoc" ]]; then
