@@ -11,6 +11,7 @@ func formatVersion(base: String) -> String {
 
 private let repoURL = URL(string: "https://github.com/pszypowicz/MicGuard")!
 private let sponsorURL = URL(string: "https://github.com/sponsors/pszypowicz")!
+private let author = "Przemysław Szypowicz"
 
 struct AboutView: View {
     private let version: String = {
@@ -24,14 +25,14 @@ struct AboutView: View {
                 .resizable()
                 .frame(width: 64, height: 64)
 
-            Text("MicGuard")
+            Text(verbatim: "MicGuard")
                 .font(.title.bold())
 
             Text("Version \(version)")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Text("by Przemysław Szypowicz")
+            Text("by \(author)")
                 .font(.subheadline)
 
             Divider()
@@ -53,6 +54,9 @@ struct AboutView: View {
     }
 
     static func showWindow() {
-        UtilityWindow.show(id: "about-micguard", title: "About MicGuard", content: AboutView())
+        // Its own key: some languages title the About menu item differently
+        // from the window (Polish macOS uses "MicGuard…" for the menu item).
+        let title = String(localized: "About MicGuard (window title)", defaultValue: "About MicGuard")
+        UtilityWindow.show(id: "about-micguard", title: title, content: AboutView())
     }
 }

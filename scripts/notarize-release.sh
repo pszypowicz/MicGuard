@@ -46,6 +46,13 @@ if [[ "$signature" != *"Authority=Developer ID Application"* ]]; then
   exit 1
 fi
 
+# bundle.sh only warns when it can't compile the string catalog; a release
+# must carry the translations.
+if ! compgen -G "$app/Contents/Resources/*.lproj/Localizable.strings" >/dev/null; then
+  echo "error: $app has no compiled translations - build on a Mac with Xcode installed" >&2
+  exit 1
+fi
+
 rm -f "$zip"
 ditto -c -k --keepParent "$app" "$zip"
 xcrun notarytool submit "$zip" --keychain-profile "$profile" --wait

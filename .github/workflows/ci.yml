@@ -22,6 +22,9 @@ jobs:
       - name: Run tests
         run: swift test
 
+      - name: Check the string catalog matches the code
+        run: bash scripts/sync-strings.sh --check
+
       # Ad hoc signing: the release identity is not available on CI.
       - name: Build the app bundle
         run: bash scripts/bundle.sh --identity adhoc

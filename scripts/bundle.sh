@@ -52,6 +52,23 @@ cp Sources/MicGuard/Info.plist "$APP/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION%%-*}" "$APP/Info.plist"
 cp Resources/MicGuard.icns "$APP/Resources/MicGuard.icns"
 
+# Translations: compile the string catalog into <language>.lproj folders.
+# xcstringstool ships with Xcode, not the Command Line Tools, and without it
+# the app runs in English only.
+if xcrun --find xcstringstool >/dev/null 2>&1; then
+  xcrun xcstringstool compile Resources/Localizable.xcstrings --output-directory "$APP/Resources"
+else
+  echo "warning: xcstringstool not found (it ships with Xcode), building without translations" >&2
+fi
+# English text is the key itself, so the catalog compiles no en.lproj. An
+# empty one still marks English as available, so a user who prefers English
+# over another supported language gets English.
+mkdir -p "$APP/Resources/en.lproj"
+/usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" "$APP/Info.plist"
+for lproj in "$APP"/Resources/*.lproj; do
+  /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations: string $(basename "$lproj" .lproj)" "$APP/Info.plist"
+done
+
 if [[ "$identity" == "adhoc" ]]; then
   codesign --sign - --force --options runtime .build/MicGuard.app
 else
