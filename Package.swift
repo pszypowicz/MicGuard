@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "MicGuard",
+    defaultLocalization: "en",
     platforms: [.macOS(.v15)],
     targets: [
         .target(name: "MicGuardCore"),
