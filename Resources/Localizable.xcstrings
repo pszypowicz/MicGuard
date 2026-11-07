@@ -16,7 +16,24 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O programie MicGuard"
+            "value" : "MicGuard…"
+          }
+        }
+      }
+    },
+    "About MicGuard (window title)" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "About MicGuard"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informacje o MicGuard"
           }
         }
       }
@@ -26,7 +43,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aby dokończyć włączanie, zezwól na MicGuard w rzeczach otwieranych podczas logowania."
+            "value" : "Aby dokończyć włączanie, zezwól na otwieranie MicGuard w ustawieniach Rzeczy i rozszerzenia otwierane podczas logowania."
           }
         }
       }
@@ -66,7 +83,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Uruchamiaj przy logowaniu"
+            "value" : "Otwieraj podczas logowania"
           }
         }
       }
@@ -106,7 +123,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Otwórz ustawienia logowania"
+            "value" : "Otwórz Rzeczy otwierane podczas logowania"
           }
         }
       }

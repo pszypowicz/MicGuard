@@ -54,6 +54,9 @@ struct AboutView: View {
     }
 
     static func showWindow() {
-        UtilityWindow.show(id: "about-micguard", title: String(localized: "About MicGuard"), content: AboutView())
+        // Its own key: some languages title the About menu item differently
+        // from the window (Polish macOS uses "MicGuard…" for the menu item).
+        let title = String(localized: "About MicGuard (window title)", defaultValue: "About MicGuard")
+        UtilityWindow.show(id: "about-micguard", title: title, content: AboutView())
     }
 }
