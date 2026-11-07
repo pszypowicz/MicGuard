@@ -76,14 +76,14 @@ struct SettingsView: View {
                 }
                 Picker(selection: preferredDeviceBinding) {
                     ForEach(devices, id: \.name) { device in
-                        Text(device.available ? device.name : "\(device.name) (offline)")
+                        Text(device.available ? device.name : String(format: NSLocalizedString("%@ (offline)", comment: "Offline status suffix"), device.name))
                             .tag(device.name)
                     }
                 } label: {
                     Label("Microphone", systemImage: "mic")
                 }
                 LabeledContent {
-                    Text(monitor.currentDevice.isEmpty ? "None" : monitor.currentDevice)
+                    Text(monitor.currentDevice.isEmpty ? NSLocalizedString("None", comment: "No current input device") : monitor.currentDevice)
                 } label: {
                     Label("Current Input", systemImage: "waveform")
                 }
@@ -159,6 +159,6 @@ struct SettingsView: View {
     }
 
     static func showWindow() {
-        UtilityWindow.show(id: "micguard-settings", title: "MicGuard Settings", content: SettingsView())
+        UtilityWindow.show(id: "micguard-settings", title: NSLocalizedString("MicGuard Settings", comment: "Settings window title"), content: SettingsView())
     }
 }

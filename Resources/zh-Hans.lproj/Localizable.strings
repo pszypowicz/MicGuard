@@ -1,0 +1,24 @@
+/* Status item menu */
+"Settings…" = "设置…";
+"About MicGuard" = "关于 MicGuard";
+"Quit MicGuard" = "退出 MicGuard";
+
+/* Settings window */
+"MicGuard Settings" = "MicGuard 设置";
+"Launch at Login" = "开机时自动启动";
+"Open Login Items" = "打开登录项设置";
+"Allow MicGuard in Login Items to finish turning this on." = "请在系统“登录项”中允许 MicGuard 以完成自启设置。";
+"Show Menu Bar Icon" = "在菜单栏显示图标";
+"With the icon hidden, open MicGuard again to get back here." = "隐藏图标后，重新打开 MicGuard 应用程序即可重新进入此设置。";
+"Auto Mode" = "自动模式";
+"Protects the preferred microphone during device connect and disconnect, and treats switches you make in System Settings as intentional. Turn it off to lock the input to one device." = "在设备连接或断开时保护首选麦克风，并将你在系统设置中手动切换麦克风的行为视为有意保留。关闭此项可将输入死锁在固定设备上。";
+"Microphone" = "麦克风";
+"%@ (offline)" = "%@ (离线)";
+"Current Input" = "当前输入设备";
+"None" = "无";
+
+/* About window */
+"Version %@" = "版本 %@";
+"by %@" = "作者：%@";
+"GitHub Repository" = "GitHub 源码仓库";
+"Support this project" = "赞助支持作者";

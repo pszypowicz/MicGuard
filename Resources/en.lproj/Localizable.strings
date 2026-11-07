@@ -1,0 +1,24 @@
+/* Status item menu */
+"Settings…" = "Settings…";
+"About MicGuard" = "About MicGuard";
+"Quit MicGuard" = "Quit MicGuard";
+
+/* Settings window */
+"MicGuard Settings" = "MicGuard Settings";
+"Launch at Login" = "Launch at Login";
+"Open Login Items" = "Open Login Items";
+"Allow MicGuard in Login Items to finish turning this on." = "Allow MicGuard in Login Items to finish turning this on.";
+"Show Menu Bar Icon" = "Show Menu Bar Icon";
+"With the icon hidden, open MicGuard again to get back here." = "With the icon hidden, open MicGuard again to get back here.";
+"Auto Mode" = "Auto Mode";
+"Protects the preferred microphone during device connect and disconnect, and treats switches you make in System Settings as intentional. Turn it off to lock the input to one device." = "Protects the preferred microphone during device connect and disconnect, and treats switches you make in System Settings as intentional. Turn it off to lock the input to one device.";
+"Microphone" = "Microphone";
+"%@ (offline)" = "%@ (offline)";
+"Current Input" = "Current Input";
+"None" = "None";
+
+/* About window */
+"Version %@" = "Version %@";
+"by %@" = "by %@";
+"GitHub Repository" = "GitHub Repository";
+"Support this project" = "Support this project";

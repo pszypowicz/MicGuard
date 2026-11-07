@@ -27,22 +27,22 @@ struct AboutView: View {
             Text("MicGuard")
                 .font(.title.bold())
 
-            Text("Version \(version)")
+            Text(String(format: NSLocalizedString("Version %@", comment: "Version label in About window"), version))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            Text("by Przemysław Szypowicz")
+            Text(String(format: NSLocalizedString("by %@", comment: "Author label in About window"), "Przemysław Szypowicz"))
                 .font(.subheadline)
 
             Divider()
 
             Link(destination: repoURL) {
-                Label("GitHub Repository", systemImage: "link")
+                Label(NSLocalizedString("GitHub Repository", comment: "Link to GitHub repository"), systemImage: "link")
             }
 
             Link(destination: sponsorURL) {
                 HStack(spacing: 4) {
-                    Text("Support this project")
+                    Text(NSLocalizedString("Support this project", comment: "Link to sponsor author"))
                     Image(systemName: "heart.fill")
                 }
             }
@@ -53,6 +53,6 @@ struct AboutView: View {
     }
 
     static func showWindow() {
-        UtilityWindow.show(id: "about-micguard", title: "About MicGuard", content: AboutView())
+        UtilityWindow.show(id: "about-micguard", title: NSLocalizedString("About MicGuard", comment: "About window title"), content: AboutView())
     }
 }

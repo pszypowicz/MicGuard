@@ -51,6 +51,7 @@ cp Sources/MicGuard/Info.plist "$APP/Info.plist"
 # left out there. The About window shows the full string from BuildMetadata.
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION%%-*}" "$APP/Info.plist"
 cp Resources/MicGuard.icns "$APP/Resources/MicGuard.icns"
+cp -R Resources/*.lproj "$APP/Resources/" 2>/dev/null || true
 
 if [[ "$identity" == "adhoc" ]]; then
   codesign --sign - --force --options runtime .build/MicGuard.app
