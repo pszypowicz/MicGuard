@@ -5,3 +5,8 @@
 Package.resolved
 .DS_Store
 *.app
+
+# Agent skills are shared; everything else under .claude/ stays local.
+!/.claude/
+/.claude/*
+!/.claude/skills/
