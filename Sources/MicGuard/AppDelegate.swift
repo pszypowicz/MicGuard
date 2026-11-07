@@ -15,7 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AudioMonitor.shared.start()
         statusItem.refresh()
 
-        UserDefaults.standard.addObserver(
+        // The KVO context parameter is a raw pointer. MicGuard passes nil and
+        // never reads it.
+        unsafe UserDefaults.standard.addObserver(
             self, forKeyPath: Preferences.showMenuBarIconKey, options: [], context: nil)
     }
 

@@ -41,6 +41,9 @@ public final class AudioMonitor {
     @ObservationIgnored private var currentDeviceID: AudioDeviceID?
     @ObservationIgnored private var levelObservation: (any LevelObservation)?
     @ObservationIgnored private var statusDebounceWork: DispatchWorkItem?
+    /// Default input and device list listeners, registered once by `start()`.
+    @ObservationIgnored private var systemListeners: [PropertyListener] = []
+    @ObservationIgnored private var started = false
 
     init(
         audio: some AudioDeviceProviding,
@@ -55,51 +58,39 @@ public final class AudioMonitor {
     }
 
     public func start() {
+        guard !started else { return }
+        started = true
         logger.info("MicGuard started [pid=\(ProcessInfo.processInfo.processIdentifier, privacy: .public)]")
 
         // Watch default input device changes
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultInputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-
-        let status = AudioObjectAddPropertyListenerBlock(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            DispatchQueue.main
-        ) { [weak self] _, _ in
-            logger.debug("[CoreAudio] DEFAULT_INPUT_CHANGED")
-            Task { @MainActor in
-                self?.handleDefaultInputChanged()
-            }
-        }
-
-        if status != noErr {
-            logger.error("Failed to register CoreAudio listener (status: \(status, privacy: .public))")
-        } else {
+        do {
+            systemListeners.append(try PropertyListener(
+                AudioDevices.systemObject,
+                AudioDevices.globalAddress(kAudioHardwarePropertyDefaultInputDevice)
+            ) { [weak self] in
+                logger.debug("[CoreAudio] DEFAULT_INPUT_CHANGED")
+                Task { @MainActor in
+                    self?.handleDefaultInputChanged()
+                }
+            })
             logger.info("Watching default input device changes")
+        } catch {
+            logger.error("Failed to register CoreAudio listener (status: \(error.status, privacy: .public))")
         }
 
         // Watch device list changes
-        var devicesAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDevices,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        let devicesStatus = AudioObjectAddPropertyListenerBlock(
-            AudioObjectID(kAudioObjectSystemObject),
-            &devicesAddress,
-            DispatchQueue.main
-        ) { [weak self] _, _ in
-            logger.debug("[CoreAudio] DEVICE_LIST_CHANGED")
-            Task { @MainActor in
-                self?.handleDeviceListChanged()
-            }
-        }
-
-        if devicesStatus != noErr {
-            logger.error("Failed to register device list listener (status: \(devicesStatus, privacy: .public))")
+        do {
+            systemListeners.append(try PropertyListener(
+                AudioDevices.systemObject,
+                AudioDevices.globalAddress(kAudioHardwarePropertyDevices)
+            ) { [weak self] in
+                logger.debug("[CoreAudio] DEVICE_LIST_CHANGED")
+                Task { @MainActor in
+                    self?.handleDeviceListChanged()
+                }
+            })
+        } catch {
+            logger.error("Failed to register device list listener (status: \(error.status, privacy: .public))")
         }
 
         // Initialize state and enforce on launch
@@ -253,8 +244,12 @@ public final class AudioMonitor {
                 logger.debug("Preferred device '\(newDefault.name, privacy: .public)' reconnected")
                 currentDevice = newDefault.name
             } else {
-                let reason = isNew ? "new device" : "settle: \(String(format: "%.1f", settleSeconds - (CFAbsoluteTimeGetCurrent() - lastDeviceListChange)))s left"
-                logger.info("Protecting preferred '\(preferred, privacy: .public)' - reverting from '\(newDefault.name, privacy: .public)' (\(reason, privacy: .public))")
+                if isNew {
+                    logger.info("Protecting preferred '\(preferred, privacy: .public)' - reverting from '\(newDefault.name, privacy: .public)' (new device)")
+                } else {
+                    let settleLeft = settleSeconds - (CFAbsoluteTimeGetCurrent() - lastDeviceListChange)
+                    logger.info("Protecting preferred '\(preferred, privacy: .public)' - reverting from '\(newDefault.name, privacy: .public)' (settle: \(settleLeft, format: .fixed(precision: 1), privacy: .public)s left)")
+                }
                 revertHijack()
                 // Extend settle period - a revert means devices aren't stable yet
                 lastDeviceListChange = CFAbsoluteTimeGetCurrent()
