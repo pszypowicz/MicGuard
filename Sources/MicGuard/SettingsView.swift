@@ -3,8 +3,8 @@ import ServiceManagement
 import SwiftUI
 
 private struct InfoDot: View {
-    let text: String
-    init(_ text: String) { self.text = text }
+    let text: LocalizedStringKey
+    init(_ text: LocalizedStringKey) { self.text = text }
 
     @State private var shown = false
     @State private var hoverDelay: Task<Void, Never>?
@@ -76,14 +76,14 @@ struct SettingsView: View {
                 }
                 Picker(selection: preferredDeviceBinding) {
                     ForEach(devices, id: \.name) { device in
-                        Text(device.available ? device.name : "\(device.name) (offline)")
+                        (device.available ? Text(verbatim: device.name) : Text("\(device.name) (offline)"))
                             .tag(device.name)
                     }
                 } label: {
                     Label("Microphone", systemImage: "mic")
                 }
                 LabeledContent {
-                    Text(monitor.currentDevice.isEmpty ? "None" : monitor.currentDevice)
+                    monitor.currentDevice.isEmpty ? Text("None") : Text(verbatim: monitor.currentDevice)
                 } label: {
                     Label("Current Input", systemImage: "waveform")
                 }
@@ -159,6 +159,6 @@ struct SettingsView: View {
     }
 
     static func showWindow() {
-        UtilityWindow.show(id: "micguard-settings", title: "MicGuard Settings", content: SettingsView())
+        UtilityWindow.show(id: "micguard-settings", title: String(localized: "MicGuard Settings"), content: SettingsView())
     }
 }

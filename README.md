@@ -48,6 +48,7 @@ Everything is configured in the Settings window, opened from the menu bar icon. 
 - **Menubar app** - runs silently in the background with a shield+mic icon (hideable in Settings)
 - **Auto-revert** - reverts unwanted input device switches caused by Bluetooth connections
 - **Self-contained** - no config files, no CLI; settings live in macOS defaults
+- **Languages** - English and Polish, following the language order in System Settings
 
 ## Modes
 

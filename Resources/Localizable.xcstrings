@@ -1,0 +1,196 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ (offline)" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (brak połączenia)"
+          }
+        }
+      }
+    },
+    "About MicGuard" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O programie MicGuard"
+          }
+        }
+      }
+    },
+    "Allow MicGuard in Login Items to finish turning this on." : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aby dokończyć włączanie, zezwól na MicGuard w rzeczach otwieranych podczas logowania."
+          }
+        }
+      }
+    },
+    "Auto Mode" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tryb automatyczny"
+          }
+        }
+      }
+    },
+    "Current Input" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bieżące wejście"
+          }
+        }
+      }
+    },
+    "GitHub Repository" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Repozytorium GitHub"
+          }
+        }
+      }
+    },
+    "Launch at Login" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uruchamiaj przy logowaniu"
+          }
+        }
+      }
+    },
+    "MicGuard Settings" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ustawienia MicGuard"
+          }
+        }
+      }
+    },
+    "Microphone" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mikrofon"
+          }
+        }
+      }
+    },
+    "None" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak"
+          }
+        }
+      }
+    },
+    "Open Login Items" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz ustawienia logowania"
+          }
+        }
+      }
+    },
+    "Protects the preferred microphone during device connect and disconnect, and treats switches you make in System Settings as intentional. Turn it off to lock the input to one device." : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chroni preferowany mikrofon podczas podłączania i odłączania urządzeń, a zmiany wprowadzone w Ustawieniach systemowych traktuje jako zamierzone. Wyłącz, aby zablokować wejście na jednym urządzeniu."
+          }
+        }
+      }
+    },
+    "Quit MicGuard" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zakończ MicGuard"
+          }
+        }
+      }
+    },
+    "Settings…" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ustawienia…"
+          }
+        }
+      }
+    },
+    "Show Menu Bar Icon" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokazuj ikonę na pasku menu"
+          }
+        }
+      }
+    },
+    "Support this project" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wesprzyj ten projekt"
+          }
+        }
+      }
+    },
+    "Version %@" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wersja %@"
+          }
+        }
+      }
+    },
+    "With the icon hidden, open MicGuard again to get back here." : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gdy ikona jest ukryta, otwórz MicGuard ponownie, aby tu wrócić."
+          }
+        }
+      }
+    },
+    "by %@" : {
+      "localizations" : {
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autor: %@"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
