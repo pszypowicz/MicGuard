@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Run tests
-        run: swift test
+        run: swift test -Xswiftc -warnings-as-errors
 
       - name: Check the string catalog matches the code
         run: bash scripts/sync-strings.sh --check

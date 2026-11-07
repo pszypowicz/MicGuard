@@ -4,7 +4,6 @@ import Testing
 @testable import MicGuardCore
 
 @Suite("Auto Mode")
-@MainActor
 struct AutoModeTests {
 
     // MARK: - New device detection (any event ordering)

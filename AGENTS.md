@@ -1,6 +1,6 @@
 # MicGuard project instructions
 
-MicGuard is a macOS menu bar app that keeps the default input device on a preferred microphone when Bluetooth devices take it over. It's a Swift package for macOS 15+ on Apple Silicon.
+MicGuard is a macOS menu bar app that keeps the default input device on a preferred microphone when Bluetooth devices take it over. It's a Swift package for macOS 15+ on Apple Silicon, and it builds with Xcode 26 or later.
 
 ## Layout
 
@@ -14,8 +14,13 @@ MicGuard is a macOS menu bar app that keeps the default input device on a prefer
 
 - `swift test` runs the unit tests in `Tests/MicGuardCoreTests`.
 - `make build` builds `.build/MicGuard.app` with an ad hoc signature, and `make dev` rebuilds and relaunches it. Pass `IDENTITY=` to sign with one of your certificates.
-- CI runs `swift test`, the string catalog check, an ad hoc bundle build, and shellcheck over `scripts/`. Changes reach `main` through pull requests that pass the `build-and-test` and `shellcheck` checks.
+- CI runs `swift test` with warnings treated as errors, the string catalog check, an ad hoc bundle build, and shellcheck over `scripts/`. Changes reach `main` through pull requests that pass the `build-and-test` and `shellcheck` checks.
 - `.claude/skills/verify/SKILL.md` explains how to launch the app and watch a change work in it. It covers driving the Settings window, reading the log and the defaults, and the parts of the app that macOS doesn't expose to automation.
+
+## Concurrency
+
+- Every target defaults to main actor isolation, set in `Package.swift`, so types and functions don't need `@MainActor`. Mark code that can run off the main actor `nonisolated`, as `AppDelegate.observeValue` does for KVO callbacks.
+- The package also turns on the upcoming features that the Swift 7 language mode enables. In MicGuardCore, a module whose types appear in public API is imported with `public import`. Each file imports the modules it uses, such as `os` for logging, because imports from another module don't carry over.
 
 ## Tests
 

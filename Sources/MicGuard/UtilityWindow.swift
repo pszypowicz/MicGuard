@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 
 /// Presents SwiftUI content in a single reusable utility window per id.
-@MainActor
 enum UtilityWindow {
     static func show(id: String, title: String, content: some View) {
         if let existing = NSApp.windows.first(where: { $0.identifier?.rawValue == id }) {

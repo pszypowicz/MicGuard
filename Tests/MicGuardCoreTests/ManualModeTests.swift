@@ -4,7 +4,6 @@ import Testing
 @testable import MicGuardCore
 
 @Suite("Manual Mode")
-@MainActor
 struct ManualModeTests {
 
     @Test("Any device change reverts to preferred")

@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// UserDefaults-backed persistence for MicGuard's settings.
 public struct Preferences {

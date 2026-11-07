@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// One-way telemetry for personal integrations (e.g. SketchyBar). MicGuard
 /// only tells - there is no notification that controls it.

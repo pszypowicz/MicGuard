@@ -1,6 +1,5 @@
-import CoreAudio
+public import CoreAudio
 
-@MainActor
 public protocol AudioDeviceProviding {
     func listInputDevices() -> [(id: AudioDeviceID, name: String)]
     func currentInputDevice() -> (id: AudioDeviceID, name: String)?
@@ -16,7 +15,6 @@ public protocol AudioDeviceProviding {
 }
 
 /// Volume and mute listeners on one device.
-@MainActor
 public protocol LevelObservation: AnyObject {
     var deviceID: AudioDeviceID { get }
     func cancel()

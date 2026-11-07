@@ -4,7 +4,6 @@ import Testing
 @testable import MicGuardCore
 
 @Suite("Status Broadcast")
-@MainActor
 struct StatusBroadcastTests {
 
     @Test("Payload carries the device name and muted as a string")
