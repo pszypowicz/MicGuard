@@ -48,7 +48,7 @@ A change that breaks either of them needs a 2.0 release. A new key or a new user
 - `VERSION` is the single source of truth. `scripts/bundle.sh` stamps it into `Info.plist`, and `BuildMetadata` reports it in the About window.
 - A release candidate is `X.Y.Z-rc.N`. Only the `X.Y.Z` part goes into `CFBundleShortVersionString`, because macOS expects plain numbers there.
 - The maintainer builds, signs, and notarizes releases locally with `scripts/notarize-release.sh`, because the Developer ID credentials never leave that machine. CI doesn't publish anything.
-- Release candidates are GitHub pre-releases and ship through the `micguard@beta` cask in pszypowicz/homebrew-tap. A stable release updates both `micguard` and `micguard@beta`.
+- Release candidates are GitHub pre-releases and ship through the `micguard@beta` cask in pszypowicz/homebrew-tap. A stable release updates `micguard` only. `micguard@beta` moves only with release candidates and stays on the last one between them.
 
 ## Writing
 
