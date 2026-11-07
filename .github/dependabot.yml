@@ -1,0 +1,8 @@
+# Opens a pull request when an action used in .github/workflows releases a
+# new major version, the part the workflows pin.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,10 +1,10 @@
 # MicGuard project instructions
 
-MicGuard is a macOS menu bar app that keeps the default input device on a preferred microphone when Bluetooth devices take it over. It's a Swift package for macOS 15+ on Apple Silicon, and it builds with Xcode 26 or later.
+MicGuard is a macOS menu bar app that keeps the default input device on a preferred microphone when Bluetooth devices take it over. It's a Swift package for macOS 15+ on Apple Silicon, and it builds with Xcode 27 or later.
 
 ## Layout
 
-- `Sources/MicGuardCore` holds the logic: CoreAudio monitoring in `AudioMonitor`, settings in `Preferences`, and the `statusChanged` notification. It reaches CoreAudio only through `AudioDeviceProviding` and posts status through an injected closure, so tests run without real devices.
+- `Sources/MicGuardCore` holds the logic: CoreAudio monitoring in `AudioMonitor`, settings in `Preferences`, and the `statusChanged` notification. It reads and switches devices through `AudioDeviceProviding` and posts status through an injected closure, so tests run without real devices. `AudioMonitor.start()` registers the CoreAudio listeners, and tests don't call it.
 - `Sources/MicGuard` is the AppKit and SwiftUI shell: the status item, the Settings and About windows, and launch at login through `SMAppService`.
 - `Plugins/BuildMetadata` generates the version, git hash, and build date that the About window shows.
 - `Resources/` holds the app icon, the DMG background, and `Localizable.xcstrings`, the string catalog with every translation.
@@ -17,10 +17,11 @@ MicGuard is a macOS menu bar app that keeps the default input device on a prefer
 - CI runs `swift test` with warnings treated as errors, the string catalog check, an ad hoc bundle build, and shellcheck over `scripts/`. Changes reach `main` through pull requests that pass the `build-and-test` and `shellcheck` checks.
 - `.claude/skills/verify/SKILL.md` explains how to launch the app and watch a change work in it. It covers driving the Settings window, reading the log and the defaults, and the parts of the app that macOS doesn't expose to automation.
 
-## Concurrency
+## Concurrency and memory safety
 
 - Every target defaults to main actor isolation, set in `Package.swift`, so types and functions don't need `@MainActor`. Mark code that can run off the main actor `nonisolated`, as `AppDelegate.observeValue` does for KVO callbacks.
 - The package also turns on the upcoming features that the Swift 7 language mode enables. In MicGuardCore, a module whose types appear in public API is imported with `public import`. Each file imports the modules it uses, such as `os` for logging, because imports from another module don't carry over.
+- Strict memory safety is on, so every use of an unsafe construct needs an `unsafe` marker. Code that hands pointers to CoreAudio goes through the property helpers and `PropertyListener` at the end of `AudioDevices.swift`, which size their buffers and check what CoreAudio returns. Anywhere else, an `unsafe` marker comes with a comment that says why the use is sound.
 
 ## Tests
 
