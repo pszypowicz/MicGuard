@@ -9,8 +9,6 @@ Prevents Bluetooth audio devices (e.g. AirPods) from hijacking the default macOS
   </picture>
 </p>
 
-> **Beta:** MicGuard is pre-1.0. Backward compatibility is not guaranteed until version 1.0.0 is reached.
-
 ## Requirements
 
 - macOS 15+ on Apple Silicon
@@ -85,6 +83,15 @@ defaults delete cz.szypowi.micguard                        # reset everything
 For personal integrations (e.g. SketchyBar), MicGuard posts read-only telemetry. There is no way to control or query MicGuard externally - it only tells:
 
 - `cz.szypowi.micguard.statusChanged` - distributed notification posted on startup and whenever the current input device or its muted state changes; userInfo: `device` (name, empty when there is no input device), `muted` (`"true"`/`"false"` - volume 0 or hardware mute flag)
+
+## Compatibility
+
+MicGuard follows [semantic versioning](https://semver.org). Within 1.x, these stay compatible:
+
+- The `cz.szypowi.micguard` defaults domain, with the keys and values listed under [Configuration](#configuration).
+- The `cz.szypowi.micguard.statusChanged` notification and its userInfo, as described under [Status broadcast](#status-broadcast).
+
+A change that breaks either of them ships as 2.0. Log messages can change in any release.
 
 ## Debugging
 
