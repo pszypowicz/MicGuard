@@ -91,20 +91,18 @@ extension AudioDevices {
         return unsafe AudioObjectHasProperty(object, &address)
     }
 
-    /// Reads a fixed-size property. Nil if the read fails or returns a size
-    /// other than `T`'s. `BitwiseCopyable` lets CoreAudio write `T`'s bytes
-    /// directly.
-    static func readValue<T: BitwiseCopyable>(
+    /// Reads a fixed-size numeric property. Nil if the read fails or returns a
+    /// size other than `T`'s. `BitwiseCopyable` lets CoreAudio write `T`'s
+    /// bytes directly.
+    static func readValue<T: BitwiseCopyable & ExpressibleByIntegerLiteral>(
         _ object: AudioObjectID, _ address: AudioObjectPropertyAddress, as type: T.Type
     ) -> T? {
         var address = address
-        return withUnsafeTemporaryAllocation(of: T.self, capacity: 1) { buffer in
-            var size = UInt32(MemoryLayout<T>.size)
-            guard let pointer = buffer.baseAddress,
-                  unsafe AudioObjectGetPropertyData(object, &address, 0, nil, &size, pointer) == noErr,
-                  size == UInt32(MemoryLayout<T>.size) else { return nil }
-            return unsafe pointer.pointee
-        }
+        var value: T = 0
+        var size = UInt32(MemoryLayout<T>.size)
+        guard unsafe AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr,
+              size == UInt32(MemoryLayout<T>.size) else { return nil }
+        return value
     }
 
     static func writeValue<T: BitwiseCopyable>(
