@@ -1,6 +1,6 @@
 # MicGuard project instructions
 
-MicGuard is a macOS menu bar app that keeps the default input device on a preferred microphone when Bluetooth devices take it over. It's a Swift package for macOS 15+ on Apple Silicon, and it builds with Xcode 26 or later.
+MicGuard is a macOS menu bar app that keeps the default input device on a preferred microphone when Bluetooth devices take it over. It's a Swift package for macOS 15+ on Apple Silicon, and it builds with Xcode 27 or later.
 
 ## Layout
 
