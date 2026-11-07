@@ -1,20 +1,36 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
+
+let swiftSettings: [SwiftSetting] = [
+    // The app runs on the main thread: CoreAudio listeners are registered on
+    // the main queue and the UI is AppKit and SwiftUI. Code that must run
+    // elsewhere is marked nonisolated.
+    .defaultIsolation(MainActor.self),
+    // Upcoming features that the Swift 7 language mode enables by default.
+    .enableUpcomingFeature("ExistentialAny"),
+    .enableUpcomingFeature("ImmutableWeakCaptures"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+    .enableUpcomingFeature("InternalImportsByDefault"),
+    .enableUpcomingFeature("MemberImportVisibility"),
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+]
 
 let package = Package(
     name: "MicGuard",
     platforms: [.macOS(.v15)],
     targets: [
-        .target(name: "MicGuardCore"),
+        .target(name: "MicGuardCore", swiftSettings: swiftSettings),
         .executableTarget(
             name: "MicGuard",
             dependencies: ["MicGuardCore"],
             exclude: ["Info.plist"],
+            swiftSettings: swiftSettings,
             plugins: [.plugin(name: "BuildMetadata")]
         ),
         .testTarget(
             name: "MicGuardCoreTests",
-            dependencies: ["MicGuardCore"]
+            dependencies: ["MicGuardCore"],
+            swiftSettings: swiftSettings
         ),
         .plugin(
             name: "BuildMetadata",

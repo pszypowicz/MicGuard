@@ -1,7 +1,6 @@
 import CoreAudio
 @testable import MicGuardCore
 
-@MainActor
 final class MockAudioDevices: AudioDeviceProviding {
     var devices: [(id: AudioDeviceID, name: String)] = []
     var currentDefault: (id: AudioDeviceID, name: String)?
@@ -53,7 +52,6 @@ final class MockAudioDevices: AudioDeviceProviding {
     }
 }
 
-@MainActor
 final class MockLevelObservation: LevelObservation {
     let deviceID: AudioDeviceID
     let onChange: @MainActor () -> Void

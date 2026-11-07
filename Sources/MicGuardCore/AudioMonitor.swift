@@ -1,10 +1,9 @@
-import CoreAudio
+public import CoreAudio
 import Foundation
 import Observation
 import os
 
 @Observable
-@MainActor
 public final class AudioMonitor {
     public static let shared = AudioMonitor(audio: LiveAudioDevices(), prefs: Preferences())
 

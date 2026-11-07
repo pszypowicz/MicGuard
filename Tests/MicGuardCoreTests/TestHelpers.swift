@@ -9,12 +9,10 @@ let usbMic: (id: AudioDeviceID, name: String) = (id: 3, name: "USB Microphone")
 let testSuiteName = "cz.szypowi.micguard.tests"
 
 /// Collects statusChanged payloads in place of the distributed notification.
-@MainActor
 final class StatusRecorder {
     var posts: [[String: String]] = []
 }
 
-@MainActor
 func makeMonitor(
     mode: String = "auto",
     preferred: String = "MacBook Pro Microphone",

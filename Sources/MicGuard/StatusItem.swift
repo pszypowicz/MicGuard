@@ -5,7 +5,6 @@ import MicGuardCore
 /// item to match the Show Menu Bar Icon setting; the owner calls it at launch
 /// and from its defaults observation, so hiding or showing the icon applies
 /// live. Idempotent.
-@MainActor
 final class StatusItemController: NSObject {
     private var statusItem: NSStatusItem?
     private let prefs = Preferences()

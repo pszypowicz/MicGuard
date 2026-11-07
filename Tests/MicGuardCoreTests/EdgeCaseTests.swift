@@ -4,7 +4,6 @@ import Testing
 @testable import MicGuardCore
 
 @Suite("Edge Cases")
-@MainActor
 struct EdgeCaseTests {
 
     @Test("No preferred device + new device connects - accepts without crash")

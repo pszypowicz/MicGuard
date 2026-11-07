@@ -33,7 +33,7 @@ Grab `MicGuard.dmg` from the [latest release](https://github.com/pszypowicz/MicG
 make install
 ```
 
-This builds an ad hoc signed copy. To sign with one of your own certificates instead, pass part of its name, for example `make install IDENTITY="Apple Development"`.
+Building needs Xcode 26 or later. This builds an ad hoc signed copy. To sign with one of your own certificates instead, pass part of its name, for example `make install IDENTITY="Apple Development"`.
 
 ## How it works
 

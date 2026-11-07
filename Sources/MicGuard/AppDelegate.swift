@@ -1,10 +1,10 @@
 import AppKit
 import MicGuardCore
+import os
 
 /// App lifecycle for the menu bar app: owns the status item, starts the audio
 /// monitor, applies the icon setting live, and opens the Settings window on
 /// reopen - the escape hatch when the menu bar icon is hidden.
-@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusItem = StatusItemController()
 

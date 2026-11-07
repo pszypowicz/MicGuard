@@ -1,4 +1,4 @@
-import CoreAudio
+public import CoreAudio
 import Foundation
 
 public struct LiveAudioDevices: AudioDeviceProviding {
@@ -33,7 +33,6 @@ public struct LiveAudioDevices: AudioDeviceProviding {
 
 /// CoreAudio listeners on a device's input volume and mute flag, delivered
 /// on the main queue.
-@MainActor
 final class LiveLevelObservation: LevelObservation {
     let deviceID: AudioDeviceID
     private var listeners: [(address: AudioObjectPropertyAddress, block: AudioObjectPropertyListenerBlock)] = []
